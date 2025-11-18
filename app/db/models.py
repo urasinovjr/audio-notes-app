@@ -58,6 +58,7 @@ class AudioNote(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     tags: Mapped[str | None] = mapped_column(String(500), nullable=True)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    text_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     transcription: Mapped[str | None] = mapped_column(Text, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
