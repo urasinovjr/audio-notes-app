@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.db.database import connect_db, disconnect_db
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -19,6 +20,18 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database connection on application startup."""
+    await connect_db()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Close database connection on application shutdown."""
+    await disconnect_db()
+
+
 @app.get("/")
 async def root():
     """Health check endpoint."""
@@ -27,10 +40,10 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Detailed health check endpoint."""
+    """Health check endpoint."""
     return {
-        "status": "healthy",
-        "version": settings.VERSION,
+        "status": "ok",
+        "version": "0.1.0",
     }
 
 

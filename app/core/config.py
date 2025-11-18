@@ -40,8 +40,15 @@ class Settings(BaseSettings):
     RABBITMQ_QUEUE_SUMMARIZATION: str = "summarization_queue"
 
     # File upload settings
-    UPLOAD_DIR: str = "uploads"
-    MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50 MB
+    UPLOAD_DIR: str = Field(
+        default="./uploads",
+        description="Directory for uploaded audio files",
+    )
+    MAX_AUDIO_SIZE_MB: int = Field(
+        default=50,
+        description="Maximum audio file size in megabytes",
+    )
+    MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50 MB (for backward compatibility)
     ALLOWED_AUDIO_FORMATS: List[str] = [
         "audio/mpeg",
         "audio/mp3",
