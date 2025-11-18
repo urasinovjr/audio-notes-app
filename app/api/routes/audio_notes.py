@@ -16,6 +16,7 @@ from app.schemas.audio_note import (
     AudioNoteUpdate,
 )
 from app.services.audio_note import AudioNoteService
+from app.services.queue import queue_service
 
 router = APIRouter()
 
@@ -207,3 +208,56 @@ async def delete_audio_note(
         )
 
     return {"message": "Note deleted successfully"}
+
+
+@router.post(
+    "/notes/{note_id}/upload-complete",
+    summary="Mark upload as complete",
+    description="Mark audio file upload as complete and queue transcription task",
+)
+async def mark_upload_complete(
+    note_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Mark upload as complete and queue transcription task.
+
+    After the audio file is uploaded via WebSocket, this endpoint should be called
+    to mark the upload as complete and queue the transcription task in RabbitMQ.
+
+    Args:
+        note_id: ID of the audio note
+        db: Database session
+
+    Returns:
+        Success message with note ID
+
+    Raises:
+        HTTPException: 404 if note not found
+    """
+    note = await AudioNoteService.get_by_id(
+        db=db,
+        note_id=note_id,
+        user_id=TEMP_USER_ID,
+    )
+
+    if not note:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Audio note with ID {note_id} not found",
+        )
+
+    # Send transcription task to RabbitMQ
+    await queue_service.send_task(
+        "transcription",
+        {
+            "note_id": note_id,
+            "file_path": note.file_path,
+            "user_id": TEMP_USER_ID,
+        },
+    )
+
+    return {
+        "message": "Transcription task queued",
+        "note_id": note_id,
+    }

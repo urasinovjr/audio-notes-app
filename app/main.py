@@ -2,8 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import router as api_router
+from app.api.routes import websocket
 from app.core.config import settings
 from app.db.database import connect_db, disconnect_db
+from app.services.queue import queue_service
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -22,18 +24,21 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(api_router)
+app.include_router(websocket.router)
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database connection on application startup."""
+    """Initialize database and queue connections on application startup."""
     await connect_db()
+    await queue_service.connect()
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Close database connection on application shutdown."""
+    """Close database and queue connections on application shutdown."""
     await disconnect_db()
+    await queue_service.disconnect()
 
 
 @app.get("/")
