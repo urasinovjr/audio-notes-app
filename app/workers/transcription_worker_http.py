@@ -1,8 +1,8 @@
 """
-Transcription worker.
+Transcription worker (HTTP version).
 
-This module contains the RabbitMQ consumer that processes transcription tasks
-using Deepgram for audio transcription and Google Gemini for summarization.
+Alternative implementation using direct HTTP requests to Deepgram API
+instead of the SDK. Use this if the SDK has issues.
 """
 
 import asyncio
@@ -24,11 +24,11 @@ genai.configure(api_key=settings.GEMINI_API_KEY)
 
 async def process_transcription(task_data: dict):
     """
-    Process a transcription task.
+    Process a transcription task using HTTP requests.
 
     This function:
     1. Updates the note status to "processing"
-    2. Transcribes the audio file using Deepgram
+    2. Transcribes the audio file using Deepgram HTTP API
     3. Generates a summary using Google Gemini
     4. Updates the database with results
     5. Sets status to "completed" or "failed"
@@ -53,79 +53,47 @@ async def process_transcription(task_data: dict):
         print(f"[Worker] Status updated to 'processing'")
 
         try:
-            # 2. Transcription via Deepgram (HTTP API)
+            # 2. Transcription via Deepgram HTTP API
+            print(f"[Worker] Starting transcription for {file_path}")
+
             try:
-                print(f"[Worker] Starting Deepgram transcription...")
-
-                with open(file_path, "rb") as audio_file:
-                    audio_data = audio_file.read()
-
-                headers = {
-                    "Authorization": f"Token {settings.DEEPGRAM_API_KEY}",
-                    "Content-Type": "audio/mpeg",
-                }
-
                 async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.post(
-                        "https://api.deepgram.com/v1/listen?model=nova-2&language=ru&smart_format=true",
-                        content=audio_data,  # Send as binary data, not files
-                        headers=headers,
-                    )
+                    with open(file_path, "rb") as audio:
+                        files = {"file": audio}
+                        headers = {"Authorization": f"Token {settings.DEEPGRAM_API_KEY}"}
 
-                    if response.status_code != 200:
-                        raise Exception(f"Deepgram API error: {response.status_code} {response.text}")
+                        response = await client.post(
+                            "https://api.deepgram.com/v1/listen?model=nova-2&language=ru&smart_format=true",
+                            files=files,
+                            headers=headers,
+                        )
 
-                    result = response.json()
-                    transcription = result["results"]["channels"][0]["alternatives"][0]["transcript"]
+                        response.raise_for_status()
+                        result = response.json()
+                        transcription = result["results"]["channels"][0]["alternatives"][0]["transcript"]
+                        print(f"[Worker] Transcription completed: {len(transcription)} chars")
 
-                    print(f"[Worker] Transcription: {transcription[:100]}...")
-                    print(f"[Worker] Transcription completed: {len(transcription)} chars")
-
+            except httpx.HTTPError as e:
+                print(f"[Worker] Deepgram HTTP error: {e}")
+                raise
             except Exception as e:
                 print(f"[Worker] Deepgram error: {e}")
                 raise
 
-            # 3. Summarization via Gemini (with timeout)
-            try:
-                print(f"[Worker] Starting Gemini summarization...")
-
-                # If transcription failed, use mock
-                if not transcription:
-                    transcription = "[Транскрипция не получена]"
-
-                # Create prompt for Gemini
-                prompt = f"""Создай краткое содержание следующего текста в 1-2 предложениях:
+            # 3. Summarization via Gemini
+            print(f"[Worker] Starting summarization")
+            model = genai.GenerativeModel(settings.GEMINI_MODEL)
+            prompt = f"""Создай краткое содержание следующего текста в 2-3 предложениях:
 
 {transcription}
 
 Краткое содержание:"""
 
-                print(f"[Worker] Calling Gemini API...")
+            gemini_response = model.generate_content(prompt)
+            summary = gemini_response.text.strip()
+            print(f"[Worker] Summary generated: {len(summary)} chars")
 
-                # Gemini with timeout
-                model = genai.GenerativeModel("gemini-1.5-flash")
-
-                # Add explicit timeout
-                try:
-                    gemini_response = await asyncio.wait_for(
-                        asyncio.to_thread(
-                            model.generate_content,
-                            prompt
-                        ),
-                        timeout=30.0
-                    )
-                    summary = gemini_response.text.strip()
-                    print(f"[Worker] Summary generated: {len(summary)} chars")
-                except asyncio.TimeoutError:
-                    print("[Worker] Gemini API timeout - using mock")
-                    summary = f"Краткое содержание: {transcription[:100]}..."
-
-            except Exception as e:
-                print(f"[Worker] Gemini error: {e}")
-                summary = f"Ошибка суммаризации: {str(e)[:100]}"
-
-            # Save results together
-            print(f"[Worker] Saving transcription and summary...")
+            # 4. Save results to database
             await db.execute(
                 update(AudioNote)
                 .where(AudioNote.id == note_id)
@@ -160,7 +128,7 @@ async def start_worker():
     from the transcription queue. Each message is processed by the
     process_transcription function.
     """
-    print("[Worker] Starting transcription worker...")
+    print("[Worker] Starting transcription worker (HTTP version)...")
     print(f"[Worker] Connecting to RabbitMQ at {settings.RABBITMQ_URL}")
 
     # Connect to RabbitMQ
@@ -203,6 +171,6 @@ if __name__ == "__main__":
     Run the worker directly.
 
     Usage:
-        python -m app.workers.transcription_worker
+        python -m app.workers.transcription_worker_http
     """
     asyncio.run(start_worker())

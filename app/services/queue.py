@@ -8,7 +8,6 @@ import json
 from typing import Dict
 
 import aio_pika
-from aio_pika import ExchangeType
 
 from app.core.config import settings
 
@@ -54,28 +53,20 @@ class QueueService:
         if not self.channel:
             raise Exception("Queue service not connected. Call connect() first.")
 
-        # Declare exchange
-        exchange = await self.channel.declare_exchange(
-            "tasks",
-            ExchangeType.DIRECT,
-            durable=True,
-        )
-
-        # Declare queue
+        # Declare queue (ensures it exists)
         queue = await self.channel.declare_queue(queue_name, durable=True)
-
-        # Bind queue to exchange
-        await queue.bind(exchange, routing_key=queue_name)
 
         # Create message
         message = aio_pika.Message(
             body=json.dumps(task_data).encode(),
-            content_type="application/json",
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
         )
 
-        # Publish message
-        await exchange.publish(message, routing_key=queue_name)
+        # Publish to default exchange with routing_key = queue_name
+        await self.channel.default_exchange.publish(
+            message,
+            routing_key=queue_name,
+        )
 
 
 # Global queue service instance

@@ -7,9 +7,11 @@ This module contains REST API endpoints for managing audio notes.
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
+from app.db.models import AudioNote
 from app.schemas.audio_note import (
     AudioNoteCreate,
     AudioNoteResponse,
@@ -247,12 +249,21 @@ async def mark_upload_complete(
             detail=f"Audio note with ID {note_id} not found",
         )
 
+    # Update file_path in database (replace placeholder with real path)
+    real_file_path = f"uploads/user_{TEMP_USER_ID}_note_{note_id}.mp3"
+    await db.execute(
+        update(AudioNote)
+        .where(AudioNote.id == note_id)
+        .values(file_path=real_file_path)
+    )
+    await db.commit()
+
     # Send transcription task to RabbitMQ
     await queue_service.send_task(
         "transcription",
         {
             "note_id": note_id,
-            "file_path": note.file_path,
+            "file_path": real_file_path,
             "user_id": TEMP_USER_ID,
         },
     )
