@@ -105,7 +105,7 @@ Audio Notes App — это микросервисное приложение д�
 ### Шаг 1: Клонирование репозитория
 
 ```bash
-git clone [<my-url>](https://github.com/urasinovjr/audio-notes-app.git)
+git clone https://github.com/urasinovjr/audio-notes-app.git
 cd audio-notes-app
 ```
 

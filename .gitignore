@@ -96,3 +96,15 @@ dmypy.json
 # Alembic
 # ═══════════════════════════════════════════════════════════
 alembic/versions/*.pyc
+
+# ═══════════════════════════════════════════════════════════
+# Test Scripts (local development only)
+# ═══════════════════════════════════════════════════════════
+UPLOAD_TEST_README.md
+debug_create.py
+test_case_insensitive.py
+test-requirements.txt
+test_filters.py
+test_real_audio_mp3.py
+test_websocket.py
+websocket_test.py
