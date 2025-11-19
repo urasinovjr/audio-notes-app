@@ -1,9 +1,19 @@
+"""
+Audio Notes API main application.
+
+This module sets up the FastAPI application with authentication,
+database connections, and message queue services.
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from supertokens_python import get_all_cors_headers
+from supertokens_python.framework.fastapi import get_middleware
 
 from app.api import router as api_router
 from app.api.routes import websocket
 from app.core.config import settings
+from app.core.supertokens import init_supertokens
 from app.db.database import connect_db, disconnect_db
 from app.services.queue import queue_service
 
@@ -13,14 +23,20 @@ app = FastAPI(
     description="Audio notes application with AI transcription and summarization",
 )
 
-# CORS middleware
+# Initialize Supertokens
+init_supertokens()
+
+# CORS middleware (configured once with Supertokens headers)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=["http://localhost:3000"] + settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "PUT", "POST", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type"] + get_all_cors_headers(),
 )
+
+# Add Supertokens middleware
+app.add_middleware(get_middleware())
 
 # Include API routes
 app.include_router(api_router)

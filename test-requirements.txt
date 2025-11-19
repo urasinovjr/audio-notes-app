@@ -1,0 +1,3 @@
+# Requirements for websocket_test.py script
+httpx>=0.27.0
+websockets>=12.0

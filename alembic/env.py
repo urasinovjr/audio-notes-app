@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -15,6 +16,10 @@ from app.db import models  # noqa: F401 - Import models to register them with Ba
 # access to the values within the .ini file in use.
 config = context.config
 
+# Получить DATABASE_URL из переменных окружения
+database_url = os.getenv("DATABASE_URL")
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:

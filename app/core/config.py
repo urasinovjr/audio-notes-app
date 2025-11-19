@@ -1,3 +1,10 @@
+"""
+Application configuration settings.
+
+This module defines all application settings loaded from environment variables.
+Settings are managed using Pydantic BaseSettings for validation and type safety.
+"""
+
 from typing import List
 
 from pydantic import Field, PostgresDsn
@@ -5,7 +12,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """
+    Application settings loaded from environment variables.
+
+    All settings can be overridden via .env file or environment variables.
+    """
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -79,7 +90,7 @@ class Settings(BaseSettings):
         default="",
         description="Google Gemini API key for summarization",
     )
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "gemini-pro"  # Stable model (can also use 'gemini-1.5-flash-latest')
 
     # Redis settings (optional, for caching)
     REDIS_URL: str | None = Field(

@@ -5,28 +5,30 @@ services:
     image: postgres:15
     container_name: audio-notes-postgres
     environment:
-      POSTGRES_USER: audio_user
-      POSTGRES_PASSWORD: audio_password
+      POSTGRES_USER: audiouser
+      POSTGRES_PASSWORD: audiopass
       POSTGRES_DB: audio_notes_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U audio_user -d audio_notes_db"]
+      test: ["CMD-SHELL", "pg_isready -U audiouser -d audio_notes_db"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - audio-notes-network
 
   rabbitmq:
-    image: rabbitmq:3.13-management
+    image: rabbitmq:3-management
     container_name: audio-notes-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
-    ports:
-      - "5672:5672"   # AMQP port
-      - "15672:15672" # Management UI port (guest/guest)
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -34,7 +36,105 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - audio-notes-network
+
+  supertokens-db:
+    image: postgres:15
+    container_name: audio-notes-supertokens-db
+    environment:
+      POSTGRES_USER: supertokens_user
+      POSTGRES_PASSWORD: supertokens_pass
+      POSTGRES_DB: supertokens
+    volumes:
+      - supertokens_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supertokens_user -d supertokens"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - audio-notes-network
+
+  supertokens:
+    image: registry.supertokens.io/supertokens/supertokens-postgresql:11.0
+    container_name: audio-notes-supertokens
+    ports:
+      - "3567:3567"
+    environment:
+      POSTGRESQL_CONNECTION_URI: postgresql://supertokens_user:supertokens_pass@supertokens-db:5432/supertokens
+    depends_on:
+      supertokens-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3567/hello"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - audio-notes-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: audio-notes-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://audiouser:audiopass@postgres:5432/audio_notes_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      SUPERTOKENS_CONNECTION_URI: http://supertokens:3567
+      SUPERTOKENS_API_DOMAIN: http://localhost:8000
+      SUPERTOKENS_WEBSITE_DOMAIN: http://localhost:3000
+    volumes:
+      - ./uploads:/app/uploads
+      - ./app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      supertokens:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - audio-notes-network
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: audio-notes-worker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://audiouser:audiopass@postgres:5432/audio_notes_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - audio-notes-network
+    restart: unless-stopped
+
+networks:
+  audio-notes-network:
+    driver: bridge
 
 volumes:
   postgres_data:
   rabbitmq_data:
+  supertokens_data:

@@ -4,12 +4,14 @@ Audio Notes API endpoints.
 This module contains REST API endpoints for managing audio notes.
 """
 
-from typing import List
+from datetime import datetime
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user_id
 from app.db.database import get_db
 from app.db.models import AudioNote
 from app.schemas.audio_note import (
@@ -20,10 +22,12 @@ from app.schemas.audio_note import (
 from app.services.audio_note import AudioNoteService
 from app.services.queue import queue_service
 
-router = APIRouter()
+# Constants
+DEFAULT_SKIP = 0
+DEFAULT_LIMIT = 100
+MAX_LIMIT = 100
 
-# Temporary user_id placeholder until authentication is implemented
-TEMP_USER_ID = 1
+router = APIRouter()
 
 
 @router.post(
@@ -31,11 +35,12 @@ TEMP_USER_ID = 1
     response_model=AudioNoteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new audio note",
-    description="Create a new audio note with metadata (file upload to be implemented later)",
+    description="Create a new audio note with metadata (file upload via WebSocket)",
 )
 async def create_audio_note(
     data: AudioNoteCreate,
     db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ) -> AudioNoteResponse:
     """
     Create a new audio note.
@@ -43,20 +48,20 @@ async def create_audio_note(
     Args:
         data: Audio note creation data
         db: Database session
+        user_id: Current authenticated user ID from session
 
     Returns:
         Created audio note
 
     Note:
-        Currently uses a placeholder file path and user_id.
-        File upload and authentication will be added later.
+        File will be uploaded via WebSocket after note creation.
     """
     # Placeholder file path until file upload is implemented
     file_path = "placeholder.mp3"
 
     note = await AudioNoteService.create(
         db=db,
-        user_id=TEMP_USER_ID,
+        user_id=user_id,
         data=data,
         file_path=file_path,
     )
@@ -68,29 +73,73 @@ async def create_audio_note(
     "/notes",
     response_model=List[AudioNoteResponse],
     summary="List audio notes",
-    description="Get a paginated list of audio notes for the current user",
+    description="Get a paginated list of audio notes for the current user with filtering and sorting",
 )
 async def list_audio_notes(
-    skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
+    skip: int = Query(DEFAULT_SKIP, ge=0, description="Number of records to skip"),
+    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT, description="Maximum number of records to return"),
+    status: Optional[str] = Query(None, description="Filter by status (pending|processing|completed|failed)"),
+    tags: Optional[str] = Query(None, description="Comma-separated tags"),
+    date_from: Optional[datetime] = Query(None, description="Filter notes created after this date (ISO 8601)"),
+    date_to: Optional[datetime] = Query(None, description="Filter notes created before this date (ISO 8601)"),
+    sort_by: str = Query("created_at", regex="^(created_at|updated_at|title|status)$", description="Sort by field"),
+    order: str = Query("desc", regex="^(asc|desc)$"),
+    search: Optional[str] = Query(None, description="Search in title, text_notes, transcription, summary"),
     db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ) -> List[AudioNoteResponse]:
     """
-    Get a list of audio notes for the current user.
+    Get notes with filters.
+
+    Query parameters:
+    - status: Filter by status (pending|processing|completed|failed)
+    - tags: Filter by tags (comma-separated)
+    - date_from: Filter notes created after this date (ISO 8601: 2025-11-19T00:00:00)
+    - date_to: Filter notes created before this date (ISO 8601: 2025-11-19T23:59:59)
+    - sort_by: Sort by field (created_at|updated_at|title|status)
+    - order: Sort order (asc|desc)
+    - skip: Number of items to skip (pagination)
+    - limit: Max number of items to return (max 100)
+    - search: Search in title, text_notes, transcription, summary (case-insensitive)
+
+    Examples:
+    - GET /api/notes?date_from=2025-11-19T00:00:00&date_to=2025-11-19T23:59:59
+    - GET /api/notes?date_from=2025-11-01T00:00:00&status=completed
+    - GET /api/notes?sort_by=title&order=asc
+    - GET /api/notes?sort_by=status&order=desc
+    - GET /api/notes?sort_by=updated_at&order=desc
+    - GET /api/notes?search=даня
+    - GET /api/notes?search=тестовая&status=completed
+    - GET /api/notes?search=знакомство&date_from=2025-11-19T00:00:00
 
     Args:
         skip: Number of records to skip (pagination)
         limit: Maximum number of records to return (pagination)
+        status: Filter by status (pending, processing, completed, failed)
+        tags: Comma-separated list of tags to filter by
+        date_from: Filter notes created after this date (ISO 8601)
+        date_to: Filter notes created before this date (ISO 8601)
+        sort_by: Field to sort by (created_at, updated_at, title, status)
+        order: Sort order (asc or desc)
+        search: Search term for title, text_notes, transcription, and summary (case-insensitive)
         db: Database session
+        user_id: Current authenticated user ID from session
 
     Returns:
         List of audio notes
     """
     notes = await AudioNoteService.list_by_user(
         db=db,
-        user_id=TEMP_USER_ID,
+        user_id=user_id,
         skip=skip,
         limit=limit,
+        status=status,
+        tags=tags,
+        date_from=date_from,
+        date_to=date_to,
+        sort_by=sort_by,
+        order=order,
+        search=search,
     )
 
     return [AudioNoteResponse.model_validate(note) for note in notes]
@@ -105,6 +154,7 @@ async def list_audio_notes(
 async def get_audio_note(
     note_id: int,
     db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ) -> AudioNoteResponse:
     """
     Get an audio note by ID.
@@ -112,17 +162,18 @@ async def get_audio_note(
     Args:
         note_id: ID of the audio note
         db: Database session
+        user_id: Current authenticated user ID from session
 
     Returns:
         Audio note details
 
     Raises:
-        HTTPException: 404 if note not found
+        HTTPException: 404 if note not found or doesn't belong to user
     """
     note = await AudioNoteService.get_by_id(
         db=db,
         note_id=note_id,
-        user_id=TEMP_USER_ID,
+        user_id=user_id,
     )
 
     if not note:
@@ -144,6 +195,7 @@ async def update_audio_note(
     note_id: int,
     data: AudioNoteUpdate,
     db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ) -> AudioNoteResponse:
     """
     Update an audio note.
@@ -152,17 +204,18 @@ async def update_audio_note(
         note_id: ID of the audio note to update
         data: Update data
         db: Database session
+        user_id: Current authenticated user ID from session
 
     Returns:
         Updated audio note
 
     Raises:
-        HTTPException: 404 if note not found
+        HTTPException: 404 if note not found or doesn't belong to user
     """
     note = await AudioNoteService.update(
         db=db,
         note_id=note_id,
-        user_id=TEMP_USER_ID,
+        user_id=user_id,
         data=data,
     )
 
@@ -183,6 +236,7 @@ async def update_audio_note(
 async def delete_audio_note(
     note_id: int,
     db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ) -> dict:
     """
     Delete an audio note.
@@ -190,17 +244,18 @@ async def delete_audio_note(
     Args:
         note_id: ID of the audio note to delete
         db: Database session
+        user_id: Current authenticated user ID from session
 
     Returns:
         Success message
 
     Raises:
-        HTTPException: 404 if note not found
+        HTTPException: 404 if note not found or doesn't belong to user
     """
     deleted = await AudioNoteService.delete(
         db=db,
         note_id=note_id,
-        user_id=TEMP_USER_ID,
+        user_id=user_id,
     )
 
     if not deleted:
@@ -220,6 +275,7 @@ async def delete_audio_note(
 async def mark_upload_complete(
     note_id: int,
     db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ) -> dict:
     """
     Mark upload as complete and queue transcription task.
@@ -230,17 +286,18 @@ async def mark_upload_complete(
     Args:
         note_id: ID of the audio note
         db: Database session
+        user_id: Current authenticated user ID from session
 
     Returns:
         Success message with note ID
 
     Raises:
-        HTTPException: 404 if note not found
+        HTTPException: 404 if note not found or doesn't belong to user
     """
     note = await AudioNoteService.get_by_id(
         db=db,
         note_id=note_id,
-        user_id=TEMP_USER_ID,
+        user_id=user_id,
     )
 
     if not note:
@@ -250,7 +307,7 @@ async def mark_upload_complete(
         )
 
     # Update file_path in database (replace placeholder with real path)
-    real_file_path = f"uploads/user_{TEMP_USER_ID}_note_{note_id}.mp3"
+    real_file_path = f"uploads/user_{user_id}_note_{note_id}.mp3"
     await db.execute(
         update(AudioNote)
         .where(AudioNote.id == note_id)
@@ -264,7 +321,7 @@ async def mark_upload_complete(
         {
             "note_id": note_id,
             "file_path": real_file_path,
-            "user_id": TEMP_USER_ID,
+            "user_id": user_id,
         },
     )
 

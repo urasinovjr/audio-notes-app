@@ -2,45 +2,79 @@
 Transcription worker.
 
 This module contains the RabbitMQ consumer that processes transcription tasks
-using Deepgram for audio transcription and Google Gemini for summarization.
+using Deepgram for audio transcription. After successful transcription,
+it sends the note to the summarization queue.
 """
 
 import asyncio
 import json
 import os
+import sys
+import time
 
 import aio_pika
 import httpx
-from google import generativeai as genai
+from loguru import logger
 from sqlalchemy import update
 
 from app.core.config import settings
 from app.db.database import async_session
 from app.db.models import AudioNote
+from app.services.queue import QueueService
 
-# Initialize Gemini API client
-genai.configure(api_key=settings.GEMINI_API_KEY)
+# Constants
+DEEPGRAM_API_URL = "https://api.deepgram.com/v1/listen"
+DEEPGRAM_MODEL = "nova-2"
+DEEPGRAM_LANGUAGE = "ru"
+HTTP_TIMEOUT = 60.0
+QUEUE_PREFETCH_COUNT = 1
+TRANSCRIPTION_QUEUE_NAME = "transcription"
+LOG_ROTATION = "1 day"
+LOG_RETENTION = "7 days"
+LOG_COMPRESSION = "zip"
+
+# Configure logging format
+logger.remove()  # Remove default handler
+
+# Console output (colored, for development)
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    level="INFO"
+)
+
+# File logging (with rotation)
+logger.add(
+    "/app/logs/transcription_worker_{time:YYYY-MM-DD}.log",
+    rotation=LOG_ROTATION,      # New file every day
+    retention=LOG_RETENTION,    # Keep logs for 7 days
+    compression=LOG_COMPRESSION,  # Compress old logs
+    level="DEBUG",              # Log all levels
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}"
+)
 
 
-async def process_transcription(task_data: dict):
+async def process_transcription(task_data: dict, queue_service: QueueService):
     """
     Process a transcription task.
 
     This function:
     1. Updates the note status to "processing"
     2. Transcribes the audio file using Deepgram
-    3. Generates a summary using Google Gemini
-    4. Updates the database with results
-    5. Sets status to "completed" or "failed"
+    3. Updates the database with transcription
+    4. Sends task to summarization queue
+    5. Sets status to "pending_summarization" or "failed"
 
     Args:
         task_data: Dictionary containing note_id, file_path, and user_id
+        queue_service: QueueService instance for sending summarization tasks
     """
     note_id = task_data["note_id"]
     file_path = task_data["file_path"]
     user_id = task_data["user_id"]
 
-    print(f"[Worker] Processing note {note_id}")
+    start_time = time.time()
+    logger.info("Processing note", note_id=note_id, user_id=user_id, file_path=file_path)
 
     async with async_session() as db:
         # 1. Update status to "processing"
@@ -50,12 +84,18 @@ async def process_transcription(task_data: dict):
             .values(status="processing")
         )
         await db.commit()
-        print(f"[Worker] Status updated to 'processing'")
+        logger.debug("Status updated to 'processing'", note_id=note_id)
 
         try:
             # 2. Transcription via Deepgram (HTTP API)
             try:
-                print(f"[Worker] Starting Deepgram transcription...")
+                file_size = os.path.getsize(file_path)
+                logger.debug(
+                    "Calling Deepgram API",
+                    note_id=note_id,
+                    file_path=file_path,
+                    file_size_bytes=file_size
+                )
 
                 with open(file_path, "rb") as audio_file:
                     audio_data = audio_file.read()
@@ -65,9 +105,11 @@ async def process_transcription(task_data: dict):
                     "Content-Type": "audio/mpeg",
                 }
 
-                async with httpx.AsyncClient(timeout=60.0) as client:
+                url = f"{DEEPGRAM_API_URL}?model={DEEPGRAM_MODEL}&language={DEEPGRAM_LANGUAGE}&smart_format=true"
+
+                async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
                     response = await client.post(
-                        "https://api.deepgram.com/v1/listen?model=nova-2&language=ru&smart_format=true",
+                        url,
                         content=audio_data,  # Send as binary data, not files
                         headers=headers,
                     )
@@ -78,70 +120,70 @@ async def process_transcription(task_data: dict):
                     result = response.json()
                     transcription = result["results"]["channels"][0]["alternatives"][0]["transcript"]
 
-                    print(f"[Worker] Transcription: {transcription[:100]}...")
-                    print(f"[Worker] Transcription completed: {len(transcription)} chars")
+                    # Extract confidence if available
+                    confidence = result["results"]["channels"][0]["alternatives"][0].get("confidence", "N/A")
+
+                    logger.info(
+                        "Deepgram response received",
+                        note_id=note_id,
+                        transcription_length=len(transcription),
+                        confidence=confidence,
+                        transcription_preview=transcription[:100]
+                    )
 
             except Exception as e:
-                print(f"[Worker] Deepgram error: {e}")
+                logger.exception(
+                    "Deepgram API error",
+                    note_id=note_id,
+                    error=str(e)
+                )
                 raise
 
-            # 3. Summarization via Gemini (with timeout)
-            try:
-                print(f"[Worker] Starting Gemini summarization...")
-
-                # If transcription failed, use mock
-                if not transcription:
-                    transcription = "[Транскрипция не получена]"
-
-                # Create prompt for Gemini
-                prompt = f"""Создай краткое содержание следующего текста в 1-2 предложениях:
-
-{transcription}
-
-Краткое содержание:"""
-
-                print(f"[Worker] Calling Gemini API...")
-
-                # Gemini with timeout
-                model = genai.GenerativeModel("gemini-1.5-flash")
-
-                # Add explicit timeout
-                try:
-                    gemini_response = await asyncio.wait_for(
-                        asyncio.to_thread(
-                            model.generate_content,
-                            prompt
-                        ),
-                        timeout=30.0
-                    )
-                    summary = gemini_response.text.strip()
-                    print(f"[Worker] Summary generated: {len(summary)} chars")
-                except asyncio.TimeoutError:
-                    print("[Worker] Gemini API timeout - using mock")
-                    summary = f"Краткое содержание: {transcription[:100]}..."
-
-            except Exception as e:
-                print(f"[Worker] Gemini error: {e}")
-                summary = f"Ошибка суммаризации: {str(e)[:100]}"
-
-            # Save results together
-            print(f"[Worker] Saving transcription and summary...")
+            # 3. Save transcription to database
+            logger.debug("Saving transcription to database", note_id=note_id)
             await db.execute(
                 update(AudioNote)
                 .where(AudioNote.id == note_id)
                 .values(
                     transcription=transcription,
-                    summary=summary,
-                    status="completed"
+                    status="pending_summarization"
                 )
             )
             await db.commit()
-            print(f"[Worker] Note {note_id} completed successfully")
+            logger.info("Transcription saved", note_id=note_id, status="pending_summarization")
+
+            # 4. Send task to summarization queue
+            try:
+                await queue_service.send_task(
+                    "summarization",
+                    {"note_id": note_id}
+                )
+                logger.info("Sent summarization task", note_id=note_id)
+            except Exception as e:
+                logger.error(
+                    "Failed to send summarization task",
+                    note_id=note_id,
+                    error=str(e)
+                )
+                # Don't fail the transcription if we can't queue summarization
+                # The transcription is already saved
+
+            # Calculate and log processing duration
+            duration = time.time() - start_time
+            logger.info(
+                "Transcription completed successfully",
+                note_id=note_id,
+                duration_seconds=round(duration, 2)
+            )
 
         except Exception as e:
-            print(f"[Worker] Error processing note {note_id}: {e}")
-            import traceback
-            traceback.print_exc()
+            duration = time.time() - start_time
+            logger.exception(
+                "Error processing note",
+                note_id=note_id,
+                error=str(e),
+                duration_seconds=round(duration, 2)
+            )
 
             # Update status to "failed"
             await db.execute(
@@ -160,24 +202,30 @@ async def start_worker():
     from the transcription queue. Each message is processed by the
     process_transcription function.
     """
-    print("[Worker] Starting transcription worker...")
-    print(f"[Worker] Connecting to RabbitMQ at {settings.RABBITMQ_URL}")
+    logger.info("Transcription worker starting...")
+    logger.info("Connecting to RabbitMQ", url=settings.RABBITMQ_URL)
 
-    # Connect to RabbitMQ
+    # Initialize queue service for sending summarization tasks
+    queue_service = QueueService()
+    await queue_service.connect()
+
+    # Connect to RabbitMQ for consuming
     connection = await aio_pika.connect_robust(settings.RABBITMQ_URL)
 
     async with connection:
+        logger.info("Connected to RabbitMQ successfully")
+
         # Create channel
         channel = await connection.channel()
 
         # Set QoS to process one message at a time
-        await channel.set_qos(prefetch_count=1)
+        await channel.set_qos(prefetch_count=QUEUE_PREFETCH_COUNT)
 
         # Declare queue
-        queue = await channel.declare_queue("transcription", durable=True)
+        queue = await channel.declare_queue(TRANSCRIPTION_QUEUE_NAME, durable=True)
 
-        print(f"[Worker] Listening on queue '{queue.name}'")
-        print("[Worker] Waiting for messages... Press CTRL+C to exit")
+        logger.info("Listening on queue 'transcription'", queue_name=queue.name)
+        logger.info("Waiting for messages... Press CTRL+C to exit")
 
         # Start consuming messages
         async with queue.iterator() as queue_iter:
@@ -187,15 +235,16 @@ async def start_worker():
                         # Decode and parse task data
                         task_data = json.loads(message.body.decode())
 
-                        print(f"\n[Worker] Received task: {task_data}")
+                        logger.info("Received task", task_data=task_data)
 
                         # Process the task
-                        await process_transcription(task_data)
+                        await process_transcription(task_data, queue_service)
 
                     except Exception as e:
-                        print(f"[Worker] Error processing task: {e}")
-                        import traceback
-                        traceback.print_exc()
+                        logger.exception(
+                            "Error processing task",
+                            error=str(e)
+                        )
 
 
 if __name__ == "__main__":

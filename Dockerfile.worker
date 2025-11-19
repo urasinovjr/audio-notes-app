@@ -1,0 +1,24 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Install UV
+RUN pip install --no-cache-dir uv
+
+# Copy dependency files
+COPY pyproject.toml .
+COPY uv.lock* ./
+COPY README.md .
+
+# Install dependencies via UV
+RUN uv sync --frozen
+
+# Copy application code
+COPY app/ app/
+COPY .env* ./
+
+# Create uploads and logs directories
+RUN mkdir -p uploads logs
+
+# Wait for RabbitMQ and PostgreSQL to be ready, then start both workers
+CMD ["sh", "-c", "sleep 10 && uv run python -m app.workers.transcription_worker & uv run python -m app.workers.summarization_worker & wait"]
