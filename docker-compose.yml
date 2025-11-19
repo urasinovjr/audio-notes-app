@@ -20,6 +20,25 @@ services:
     networks:
       - audio-notes-network
 
+  postgres-test:
+    image: postgres:15
+    container_name: audio-notes-postgres-test
+    environment:
+      POSTGRES_USER: audiouser
+      POSTGRES_PASSWORD: audiopass
+      POSTGRES_DB: audio_notes_test_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U audiouser -d audio_notes_test_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - audio-notes-network
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: audio-notes-rabbitmq
@@ -136,5 +155,6 @@ networks:
 
 volumes:
   postgres_data:
+  postgres_test_data:
   rabbitmq_data:
   supertokens_data:
