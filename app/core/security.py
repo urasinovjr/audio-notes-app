@@ -2,6 +2,8 @@
 Security headers middleware.
 """
 
+from collections.abc import Awaitable, Callable
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -10,7 +12,19 @@ from starlette.responses import Response
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add security headers to all responses."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """
+        Add security headers to the response.
+
+        Args:
+            request: The incoming HTTP request
+            call_next: The next middleware or route handler
+
+        Returns:
+            Response with security headers added
+        """
         response: Response = await call_next(request)
 
         # Security headers

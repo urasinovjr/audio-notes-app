@@ -32,7 +32,7 @@ TestSessionLocal = async_sessionmaker(test_engine, class_=AsyncSession, expire_o
 
 
 @pytest.fixture(scope="session")
-def event_loop() -> Generator:
+def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     """
     Create event loop for the test session.
     """

@@ -14,12 +14,12 @@ from app.core.config import settings
 class QueueService:
     """Service for managing RabbitMQ connections and task publishing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the queue service."""
         self.connection = None
         self.channel = None
 
-    async def connect(self):
+    async def connect(self) -> None:
         """
         Connect to RabbitMQ.
 
@@ -29,7 +29,7 @@ class QueueService:
         self.connection = await aio_pika.connect_robust(settings.RABBITMQ_URL)
         self.channel = await self.connection.channel()
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """
         Disconnect from RabbitMQ.
 
@@ -38,7 +38,7 @@ class QueueService:
         if self.connection:
             await self.connection.close()
 
-    async def send_task(self, queue_name: str, task_data: dict):
+    async def send_task(self, queue_name: str, task_data: dict) -> None:
         """
         Send a task to a queue.
 

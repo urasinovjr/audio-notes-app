@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.websocket("/ws/upload")
-async def websocket_upload_audio(websocket: WebSocket):
+async def websocket_upload_audio(websocket: WebSocket) -> None:
     """
     WebSocket endpoint for uploading audio files.
 

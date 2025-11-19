@@ -73,7 +73,7 @@ app.include_router(websocket.router)
 
 
 # Graceful shutdown handler
-def signal_handler(sig, frame):
+def signal_handler(sig: int, frame: object) -> None:
     """Handle shutdown signals gracefully."""
     logger.info("Received shutdown signal, closing connections...")
     sys.exit(0)
@@ -85,14 +85,14 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     """Initialize database and queue connections on application startup."""
     await connect_db()
     await queue_service.connect()
 
 
 @app.on_event("shutdown")
-async def shutdown_event():
+async def shutdown_event() -> None:
     """Close database and queue connections on application shutdown."""
     logger.info("Application shutting down...")
     await disconnect_db()
@@ -101,17 +101,17 @@ async def shutdown_event():
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, str]:
     """Health check endpoint."""
     return {"message": "Audio Notes API is running", "version": settings.VERSION}
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict[str, str]:
     """Health check endpoint."""
     return {
         "status": "ok",
-        "version": "0.1.0",
+        "version": settings.VERSION,
     }
 
 

@@ -44,7 +44,7 @@ LOG_COMPRESSION = "zip"
 shutdown_event = asyncio.Event()
 
 
-def shutdown_handler(sig, frame):
+def shutdown_handler(sig: int, frame: object) -> None:
     """Handle shutdown signals."""
     logger.info(f"Received signal {sig}, initiating graceful shutdown...")
     shutdown_event.set()
