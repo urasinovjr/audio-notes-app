@@ -1043,6 +1043,11 @@ exit
 uv sync
 uv run python app/main.py
 ```
+---
+
+## Автор
+
+Даниил Урасинов
 
 ---
 
