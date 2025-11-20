@@ -37,10 +37,7 @@ async def websocket_upload_audio(websocket: WebSocket):
         user_id = websocket.query_params.get("user_id", "1")
 
         if not note_id:
-            await websocket.send_json({
-                "status": "error",
-                "message": "note_id is required"
-            })
+            await websocket.send_json({"status": "error", "message": "note_id is required"})
             await websocket.close()
             return
 
@@ -69,32 +66,29 @@ async def websocket_upload_audio(websocket: WebSocket):
                     total_bytes += len(data)
 
                     # Send acknowledgment to client
-                    await websocket.send_json({
-                        "status": "received",
-                        "bytes": len(data),
-                        "total_bytes": total_bytes
-                    })
+                    await websocket.send_json(
+                        {"status": "received", "bytes": len(data), "total_bytes": total_bytes}
+                    )
 
                 except WebSocketDisconnect:
                     # Client disconnected, break the loop
                     break
 
         # Send completion message
-        await websocket.send_json({
-            "status": "completed",
-            "file_path": file_path,
-            "note_id": note_id,
-            "total_bytes": total_bytes
-        })
+        await websocket.send_json(
+            {
+                "status": "completed",
+                "file_path": file_path,
+                "note_id": note_id,
+                "total_bytes": total_bytes,
+            }
+        )
 
     except Exception as e:
         # Send error message
         try:
-            await websocket.send_json({
-                "status": "error",
-                "message": str(e)
-            })
-        except:
+            await websocket.send_json({"status": "error", "message": str(e)})
+        except Exception:
             # If we can't send the error, just pass
             pass
 
@@ -102,6 +96,6 @@ async def websocket_upload_audio(websocket: WebSocket):
         # Close the WebSocket connection
         try:
             await websocket.close()
-        except:
+        except Exception:
             # Connection might already be closed
             pass

@@ -5,7 +5,6 @@ This module provides RabbitMQ integration for task queuing.
 """
 
 import json
-from typing import Dict
 
 import aio_pika
 
@@ -39,7 +38,7 @@ class QueueService:
         if self.connection:
             await self.connection.close()
 
-    async def send_task(self, queue_name: str, task_data: Dict):
+    async def send_task(self, queue_name: str, task_data: dict):
         """
         Send a task to a queue.
 
@@ -54,7 +53,7 @@ class QueueService:
             raise Exception("Queue service not connected. Call connect() first.")
 
         # Declare queue (ensures it exists)
-        queue = await self.channel.declare_queue(queue_name, durable=True)
+        await self.channel.declare_queue(queue_name, durable=True)
 
         # Create message
         message = aio_pika.Message(

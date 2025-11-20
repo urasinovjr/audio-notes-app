@@ -5,13 +5,14 @@ This module contains REST API endpoints for managing audio notes.
 """
 
 from datetime import datetime
-from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user_id
+from app.core.exceptions import NoteNotFoundException
+from app.core.rate_limit import limiter
 from app.db.database import get_db
 from app.db.models import AudioNote
 from app.schemas.audio_note import (
@@ -37,7 +38,9 @@ router = APIRouter()
     summary="Create a new audio note",
     description="Create a new audio note with metadata (file upload via WebSocket)",
 )
+@limiter.limit("10/minute")
 async def create_audio_note(
+    request: Request,
     data: AudioNoteCreate,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
@@ -71,23 +74,37 @@ async def create_audio_note(
 
 @router.get(
     "/notes",
-    response_model=List[AudioNoteResponse],
+    response_model=list[AudioNoteResponse],
     summary="List audio notes",
     description="Get a paginated list of audio notes for the current user with filtering and sorting",
 )
+@limiter.limit("50/minute")
 async def list_audio_notes(
+    request: Request,
     skip: int = Query(DEFAULT_SKIP, ge=0, description="Number of records to skip"),
-    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT, description="Maximum number of records to return"),
-    status: Optional[str] = Query(None, description="Filter by status (pending|processing|completed|failed)"),
-    tags: Optional[str] = Query(None, description="Comma-separated tags"),
-    date_from: Optional[datetime] = Query(None, description="Filter notes created after this date (ISO 8601)"),
-    date_to: Optional[datetime] = Query(None, description="Filter notes created before this date (ISO 8601)"),
-    sort_by: str = Query("created_at", regex="^(created_at|updated_at|title|status)$", description="Sort by field"),
+    limit: int = Query(
+        DEFAULT_LIMIT, ge=1, le=MAX_LIMIT, description="Maximum number of records to return"
+    ),
+    status: str | None = Query(
+        None, description="Filter by status (pending|processing|completed|failed)"
+    ),
+    tags: str | None = Query(None, description="Comma-separated tags"),
+    date_from: datetime | None = Query(
+        None, description="Filter notes created after this date (ISO 8601)"
+    ),
+    date_to: datetime | None = Query(
+        None, description="Filter notes created before this date (ISO 8601)"
+    ),
+    sort_by: str = Query(
+        "created_at", regex="^(created_at|updated_at|title|status)$", description="Sort by field"
+    ),
     order: str = Query("desc", regex="^(asc|desc)$"),
-    search: Optional[str] = Query(None, description="Search in title, text_notes, transcription, summary"),
+    search: str | None = Query(
+        None, description="Search in title, text_notes, transcription, summary"
+    ),
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
-) -> List[AudioNoteResponse]:
+) -> list[AudioNoteResponse]:
     """
     Get notes with filters.
 
@@ -151,7 +168,9 @@ async def list_audio_notes(
     summary="Get audio note by ID",
     description="Retrieve a specific audio note by its ID",
 )
+@limiter.limit("30/minute")
 async def get_audio_note(
+    request: Request,
     note_id: int,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
@@ -177,10 +196,7 @@ async def get_audio_note(
     )
 
     if not note:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Audio note with ID {note_id} not found",
-        )
+        raise NoteNotFoundException(note_id=note_id)
 
     return AudioNoteResponse.model_validate(note)
 
@@ -191,7 +207,9 @@ async def get_audio_note(
     summary="Update audio note",
     description="Update an existing audio note's metadata",
 )
+@limiter.limit("20/minute")
 async def update_audio_note(
+    request: Request,
     note_id: int,
     data: AudioNoteUpdate,
     db: AsyncSession = Depends(get_db),
@@ -220,10 +238,7 @@ async def update_audio_note(
     )
 
     if not note:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Audio note with ID {note_id} not found",
-        )
+        raise NoteNotFoundException(note_id=note_id)
 
     return AudioNoteResponse.model_validate(note)
 
@@ -233,7 +248,9 @@ async def update_audio_note(
     summary="Delete audio note",
     description="Delete an audio note permanently",
 )
+@limiter.limit("20/minute")
 async def delete_audio_note(
+    request: Request,
     note_id: int,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
@@ -259,10 +276,7 @@ async def delete_audio_note(
     )
 
     if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Audio note with ID {note_id} not found",
-        )
+        raise NoteNotFoundException(note_id=note_id)
 
     return {"message": "Note deleted successfully"}
 
@@ -272,7 +286,9 @@ async def delete_audio_note(
     summary="Mark upload as complete",
     description="Mark audio file upload as complete and queue transcription task",
 )
+@limiter.limit("15/minute")
 async def mark_upload_complete(
+    request: Request,
     note_id: int,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
@@ -301,17 +317,12 @@ async def mark_upload_complete(
     )
 
     if not note:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Audio note with ID {note_id} not found",
-        )
+        raise NoteNotFoundException(note_id=note_id)
 
     # Update file_path in database (replace placeholder with real path)
     real_file_path = f"uploads/user_{user_id}_note_{note_id}.mp3"
     await db.execute(
-        update(AudioNote)
-        .where(AudioNote.id == note_id)
-        .values(file_path=real_file_path)
+        update(AudioNote).where(AudioNote.id == note_id).values(file_path=real_file_path)
     )
     await db.commit()
 

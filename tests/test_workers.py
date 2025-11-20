@@ -1,6 +1,7 @@
 """
 Tests for background workers.
 """
+
 import pytest
 
 

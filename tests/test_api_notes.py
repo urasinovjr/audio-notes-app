@@ -1,6 +1,7 @@
 """
 Tests for audio notes API endpoints.
 """
+
 import pytest
 from httpx import AsyncClient
 
@@ -16,9 +17,9 @@ class TestCreateNote:
             json={
                 "title": "My First Note",
                 "tags": "work,important",
-                "text_notes": "This is my first audio note"
+                "text_notes": "This is my first audio note",
             },
-            headers=test_user["headers"]
+            headers=test_user["headers"],
         )
 
         assert response.status_code == 201
@@ -34,9 +35,7 @@ class TestCreateNote:
     async def test_create_note_minimal(self, client: AsyncClient, test_user: dict):
         """Test note creation with minimal required fields."""
         response = await client.post(
-            "/api/notes",
-            json={"title": "Minimal Note"},
-            headers=test_user["headers"]
+            "/api/notes", json={"title": "Minimal Note"}, headers=test_user["headers"]
         )
 
         assert response.status_code == 201
@@ -47,20 +46,13 @@ class TestCreateNote:
 
     async def test_create_note_without_auth(self, client: AsyncClient):
         """Test note creation without authentication fails."""
-        response = await client.post(
-            "/api/notes",
-            json={"title": "Unauthorized Note"}
-        )
+        response = await client.post("/api/notes", json={"title": "Unauthorized Note"})
 
         assert response.status_code == 401
 
     async def test_create_note_invalid_title(self, client: AsyncClient, test_user: dict):
         """Test note creation with empty title fails."""
-        response = await client.post(
-            "/api/notes",
-            json={"title": ""},
-            headers=test_user["headers"]
-        )
+        response = await client.post("/api/notes", json={"title": ""}, headers=test_user["headers"])
 
         assert response.status_code == 422
 
@@ -71,20 +63,14 @@ class TestGetNotes:
 
     async def test_get_notes_empty(self, client: AsyncClient, test_user: dict):
         """Test getting notes when none exist."""
-        response = await client.get(
-            "/api/notes",
-            headers=test_user["headers"]
-        )
+        response = await client.get("/api/notes", headers=test_user["headers"])
 
         assert response.status_code == 200
         assert response.json() == []
 
     async def test_get_notes_with_data(self, client: AsyncClient, test_user: dict, test_note):
         """Test getting notes when they exist."""
-        response = await client.get(
-            "/api/notes",
-            headers=test_user["headers"]
-        )
+        response = await client.get("/api/notes", headers=test_user["headers"])
 
         assert response.status_code == 200
         data = response.json()
@@ -109,16 +95,14 @@ class TestGetNotes:
                 title=f"Note {i}",
                 tags="test",
                 status="pending",
-                file_path=f"test{i}.mp3"
+                file_path=f"test{i}.mp3",
             )
             db_session.add(note)
         await db_session.commit()
 
         # Get first page (limit=2)
         response = await client.get(
-            "/api/notes",
-            params={"limit": 2, "skip": 0},
-            headers=test_user["headers"]
+            "/api/notes", params={"limit": 2, "skip": 0}, headers=test_user["headers"]
         )
 
         assert response.status_code == 200
@@ -127,9 +111,7 @@ class TestGetNotes:
 
         # Get second page
         response = await client.get(
-            "/api/notes",
-            params={"limit": 2, "skip": 2},
-            headers=test_user["headers"]
+            "/api/notes", params={"limit": 2, "skip": 2}, headers=test_user["headers"]
         )
 
         assert response.status_code == 200
@@ -143,10 +125,7 @@ class TestGetNoteById:
 
     async def test_get_note_success(self, client: AsyncClient, test_user: dict, test_note):
         """Test getting specific note by ID."""
-        response = await client.get(
-            f"/api/notes/{test_note.id}",
-            headers=test_user["headers"]
-        )
+        response = await client.get(f"/api/notes/{test_note.id}", headers=test_user["headers"])
 
         assert response.status_code == 200
         data = response.json()
@@ -155,10 +134,7 @@ class TestGetNoteById:
 
     async def test_get_note_not_found(self, client: AsyncClient, test_user: dict):
         """Test getting non-existent note."""
-        response = await client.get(
-            "/api/notes/99999",
-            headers=test_user["headers"]
-        )
+        response = await client.get("/api/notes/99999", headers=test_user["headers"])
 
         assert response.status_code == 404
 
@@ -172,11 +148,7 @@ class TestGetNoteById:
         await db_session.commit()
 
         note = AudioNote(
-            user_id=user.id,
-            title="Test Note",
-            tags="test",
-            status="pending",
-            file_path="test.mp3"
+            user_id=user.id, title="Test Note", tags="test", status="pending", file_path="test.mp3"
         )
         db_session.add(note)
         await db_session.commit()
@@ -195,12 +167,8 @@ class TestUpdateNote:
         """Test successful note update."""
         response = await client.patch(
             f"/api/notes/{test_note.id}",
-            json={
-                "title": "Updated Title",
-                "tags": "updated,new",
-                "text_notes": "Updated text"
-            },
-            headers=test_user["headers"]
+            json={"title": "Updated Title", "tags": "updated,new", "text_notes": "Updated text"},
+            headers=test_user["headers"],
         )
 
         assert response.status_code == 200
@@ -216,7 +184,7 @@ class TestUpdateNote:
         response = await client.patch(
             f"/api/notes/{test_note.id}",
             json={"title": "New Title Only"},
-            headers=test_user["headers"]
+            headers=test_user["headers"],
         )
 
         assert response.status_code == 200
@@ -228,9 +196,7 @@ class TestUpdateNote:
     async def test_update_note_not_found(self, client: AsyncClient, test_user: dict):
         """Test updating non-existent note."""
         response = await client.patch(
-            "/api/notes/99999",
-            json={"title": "New Title"},
-            headers=test_user["headers"]
+            "/api/notes/99999", json={"title": "New Title"}, headers=test_user["headers"]
         )
 
         assert response.status_code == 404
@@ -245,19 +211,14 @@ class TestUpdateNote:
         await db_session.commit()
 
         note = AudioNote(
-            user_id=user.id,
-            title="Test Note",
-            tags="test",
-            status="pending",
-            file_path="test.mp3"
+            user_id=user.id, title="Test Note", tags="test", status="pending", file_path="test.mp3"
         )
         db_session.add(note)
         await db_session.commit()
         await db_session.refresh(note)
 
         response = await client.patch(
-            f"/api/notes/{note.id}",
-            json={"title": "Unauthorized Update"}
+            f"/api/notes/{note.id}", json={"title": "Unauthorized Update"}
         )
 
         assert response.status_code == 401
@@ -269,10 +230,7 @@ class TestDeleteNote:
 
     async def test_delete_note_success(self, client: AsyncClient, test_user: dict, test_note):
         """Test successful note deletion."""
-        response = await client.delete(
-            f"/api/notes/{test_note.id}",
-            headers=test_user["headers"]
-        )
+        response = await client.delete(f"/api/notes/{test_note.id}", headers=test_user["headers"])
 
         assert response.status_code == 200
         data = response.json()
@@ -280,18 +238,12 @@ class TestDeleteNote:
         assert data["message"] == "Note deleted successfully"
 
         # Verify note is deleted
-        get_response = await client.get(
-            f"/api/notes/{test_note.id}",
-            headers=test_user["headers"]
-        )
+        get_response = await client.get(f"/api/notes/{test_note.id}", headers=test_user["headers"])
         assert get_response.status_code == 404
 
     async def test_delete_note_not_found(self, client: AsyncClient, test_user: dict):
         """Test deleting non-existent note."""
-        response = await client.delete(
-            "/api/notes/99999",
-            headers=test_user["headers"]
-        )
+        response = await client.delete("/api/notes/99999", headers=test_user["headers"])
 
         assert response.status_code == 404
 
@@ -305,11 +257,7 @@ class TestDeleteNote:
         await db_session.commit()
 
         note = AudioNote(
-            user_id=user.id,
-            title="Test Note",
-            tags="test",
-            status="pending",
-            file_path="test.mp3"
+            user_id=user.id, title="Test Note", tags="test", status="pending", file_path="test.mp3"
         )
         db_session.add(note)
         await db_session.commit()

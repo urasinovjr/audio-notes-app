@@ -7,7 +7,6 @@ This module contains hooks that sync Supertokens users with the main application
 import logging
 from datetime import datetime
 
-from sqlalchemy import insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -60,12 +59,16 @@ async def create_user_in_db(user_id: str, email: str) -> bool:
         async with async_session_maker() as session:
             # Use PostgreSQL's INSERT ... ON CONFLICT DO NOTHING
             # to handle race conditions or duplicate signup attempts
-            stmt = pg_insert(User).values(
-                id=user_id,
-                email=email,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
-            ).on_conflict_do_nothing(index_elements=['id'])
+            stmt = (
+                pg_insert(User)
+                .values(
+                    id=user_id,
+                    email=email,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
+                )
+                .on_conflict_do_nothing(index_elements=["id"])
+            )
 
             await session.execute(stmt)
             await session.commit()

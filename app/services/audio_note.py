@@ -5,9 +5,8 @@ This module contains business logic for audio note operations.
 """
 
 from datetime import datetime
-from typing import List, Optional
 
-from sqlalchemy import select, or_, func
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import AudioNote
@@ -56,7 +55,7 @@ class AudioNoteService:
         db: AsyncSession,
         note_id: int,
         user_id: str,
-    ) -> Optional[AudioNote]:
+    ) -> AudioNote | None:
         """
         Get an audio note by ID.
 
@@ -81,14 +80,14 @@ class AudioNoteService:
         user_id: str,
         skip: int = 0,
         limit: int = 100,
-        status: Optional[str] = None,
-        tags: Optional[str] = None,
-        date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None,
+        status: str | None = None,
+        tags: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
         sort_by: str = "created_at",
         order: str = "desc",
-        search: Optional[str] = None,
-    ) -> List[AudioNote]:
+        search: str | None = None,
+    ) -> list[AudioNote]:
         """
         Get a list of audio notes for a user with filtering and sorting.
 
@@ -136,7 +135,7 @@ class AudioNoteService:
                     AudioNote.title.ilike(search_pattern),
                     AudioNote.text_notes.ilike(search_pattern),
                     AudioNote.transcription.ilike(search_pattern),
-                    AudioNote.summary.ilike(search_pattern)
+                    AudioNote.summary.ilike(search_pattern),
                 )
             )
 
@@ -146,7 +145,7 @@ class AudioNoteService:
             "created_at": AudioNote.created_at,
             "updated_at": AudioNote.updated_at,
             "title": AudioNote.title,
-            "status": AudioNote.status
+            "status": AudioNote.status,
         }.get(sort_by, AudioNote.created_at)
 
         # Apply sort order
@@ -167,7 +166,7 @@ class AudioNoteService:
         note_id: int,
         user_id: str,
         data: AudioNoteUpdate,
-    ) -> Optional[AudioNote]:
+    ) -> AudioNote | None:
         """
         Update an audio note.
 

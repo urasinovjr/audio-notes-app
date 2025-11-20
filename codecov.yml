@@ -1,0 +1,14 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 40%
+        threshold: 5%
+    patch:
+      default:
+        target: 50%
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
+  require_changes: false

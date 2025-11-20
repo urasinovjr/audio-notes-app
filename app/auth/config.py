@@ -5,7 +5,7 @@ This module initializes Supertokens with EmailPassword and Session recipes.
 """
 
 import asyncio
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from supertokens_python import InputAppInfo, SupertokensConfig, init
 from supertokens_python.recipe import emailpassword, session
@@ -30,13 +30,13 @@ def override_emailpassword_apis(original_implementation: APIInterface) -> APIInt
     original_sign_up_post = original_implementation.sign_up_post
 
     async def sign_up_post(
-        form_fields: List[Any],
+        form_fields: list[Any],
         tenant_id: str,
-        session: Union[SessionContainer, None],
-        should_try_linking_with_session_user: Union[bool, None],
+        session: SessionContainer | None,
+        should_try_linking_with_session_user: bool | None,
         api_options: APIOptions,
-        user_context: Dict[str, Any],
-    ) -> Union[SignUpPostOkResult, Any]:
+        user_context: dict[str, Any],
+    ) -> SignUpPostOkResult | Any:
         """Override sign_up_post to sync user to main database."""
         # Call the original implementation
         response = await original_sign_up_post(

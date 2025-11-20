@@ -5,7 +5,6 @@ This module contains all database models for the audio notes application.
 """
 
 from datetime import datetime
-from typing import List
 
 from sqlalchemy import (
     DateTime,
@@ -47,7 +46,7 @@ class User(Base):
     )
 
     # Relationships
-    audio_notes: Mapped[List["AudioNote"]] = relationship(
+    audio_notes: Mapped[list["AudioNote"]] = relationship(
         "AudioNote", back_populates="user", cascade="all, delete-orphan"
     )
 

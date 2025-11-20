@@ -7,7 +7,6 @@ instead of the SDK. Use this if the SDK has issues.
 
 import asyncio
 import json
-import os
 
 import aio_pika
 import httpx
@@ -38,19 +37,16 @@ async def process_transcription(task_data: dict):
     """
     note_id = task_data["note_id"]
     file_path = task_data["file_path"]
-    user_id = task_data["user_id"]
 
     print(f"[Worker] Processing note {note_id}")
 
     async with async_session() as db:
         # 1. Update status to "processing"
         await db.execute(
-            update(AudioNote)
-            .where(AudioNote.id == note_id)
-            .values(status="processing")
+            update(AudioNote).where(AudioNote.id == note_id).values(status="processing")
         )
         await db.commit()
-        print(f"[Worker] Status updated to 'processing'")
+        print("[Worker] Status updated to 'processing'")
 
         try:
             # 2. Transcription via Deepgram HTTP API
@@ -70,7 +66,9 @@ async def process_transcription(task_data: dict):
 
                         response.raise_for_status()
                         result = response.json()
-                        transcription = result["results"]["channels"][0]["alternatives"][0]["transcript"]
+                        transcription = result["results"]["channels"][0]["alternatives"][0][
+                            "transcript"
+                        ]
                         print(f"[Worker] Transcription completed: {len(transcription)} chars")
 
             except httpx.HTTPError as e:
@@ -81,7 +79,7 @@ async def process_transcription(task_data: dict):
                 raise
 
             # 3. Summarization via Gemini
-            print(f"[Worker] Starting summarization")
+            print("[Worker] Starting summarization")
             model = genai.GenerativeModel(settings.GEMINI_MODEL)
             prompt = f"""Создай краткое содержание следующего текста в 2-3 предложениях:
 
@@ -97,11 +95,7 @@ async def process_transcription(task_data: dict):
             await db.execute(
                 update(AudioNote)
                 .where(AudioNote.id == note_id)
-                .values(
-                    transcription=transcription,
-                    summary=summary,
-                    status="completed"
-                )
+                .values(transcription=transcription, summary=summary, status="completed")
             )
             await db.commit()
             print(f"[Worker] Note {note_id} completed successfully")
@@ -109,13 +103,12 @@ async def process_transcription(task_data: dict):
         except Exception as e:
             print(f"[Worker] Error processing note {note_id}: {e}")
             import traceback
+
             traceback.print_exc()
 
             # Update status to "failed"
             await db.execute(
-                update(AudioNote)
-                .where(AudioNote.id == note_id)
-                .values(status="failed")
+                update(AudioNote).where(AudioNote.id == note_id).values(status="failed")
             )
             await db.commit()
 
@@ -163,6 +156,7 @@ async def start_worker():
                     except Exception as e:
                         print(f"[Worker] Error processing task: {e}")
                         import traceback
+
                         traceback.print_exc()
 
 

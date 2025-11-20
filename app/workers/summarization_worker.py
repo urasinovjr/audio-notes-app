@@ -7,6 +7,7 @@ of transcribed text using Google Gemini.
 
 import asyncio
 import json
+import signal
 import sys
 import time
 
@@ -14,6 +15,12 @@ import aio_pika
 import google.generativeai as genai
 from loguru import logger
 from sqlalchemy import select, update
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.core.config import settings
 from app.db.database import async_session
@@ -29,6 +36,20 @@ LOG_COMPRESSION = "zip"
 TRANSCRIPTION_PREVIEW_LENGTH = 200
 SUMMARY_PREVIEW_LENGTH = 100
 
+# Graceful shutdown event
+shutdown_event = asyncio.Event()
+
+
+def shutdown_handler(sig, frame):
+    """Handle shutdown signals."""
+    logger.info(f"Received signal {sig}, initiating graceful shutdown...")
+    shutdown_event.set()
+
+
+# Register signal handlers
+signal.signal(signal.SIGINT, shutdown_handler)
+signal.signal(signal.SIGTERM, shutdown_handler)
+
 # Configure logging
 logger.remove()  # Remove default handler
 
@@ -36,7 +57,7 @@ logger.remove()  # Remove default handler
 logger.add(
     sys.stderr,
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    level="INFO"
+    level="INFO",
 )
 
 # File logging (with rotation)
@@ -46,7 +67,7 @@ logger.add(
     retention=LOG_RETENTION,
     compression=LOG_COMPRESSION,
     level="DEBUG",
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}"
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
 )
 
 # Configure Gemini API
@@ -61,11 +82,11 @@ genai.configure(api_key=settings.GEMINI_API_KEY)
 # List of models to try (in priority order)
 # Note: SDK automatically adds "models/" prefix to names
 GEMINI_MODELS = [
-    'gemini-flash-latest',      # -> models/gemini-flash-latest
-    'gemini-2.5-flash',          # -> models/gemini-2.5-flash
-    'gemini-pro-latest',         # -> models/gemini-pro-latest
-    'gemini-2.5-pro',            # -> models/gemini-2.5-pro
-    'gemini-2.0-flash',          # -> models/gemini-2.0-flash
+    "gemini-flash-latest",  # -> models/gemini-flash-latest
+    "gemini-2.5-flash",  # -> models/gemini-2.5-flash
+    "gemini-pro-latest",  # -> models/gemini-pro-latest
+    "gemini-2.5-pro",  # -> models/gemini-2.5-pro
+    "gemini-2.0-flash",  # -> models/gemini-2.0-flash
 ]
 
 
@@ -106,6 +127,68 @@ except Exception as e:
     model = None  # Will retry at runtime
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type(Exception),
+    reraise=True,
+)
+async def summarize_with_retry(transcription: str, note_id: int) -> str:
+    """
+    Summarize transcription with retry logic.
+
+    Retries up to 3 times with exponential backoff.
+
+    Args:
+        transcription: Text to summarize
+        note_id: ID of the note being summarized
+
+    Returns:
+        Summary text
+
+    Raises:
+        Exception: If summarization fails after all retries
+    """
+    try:
+        logger.info(f"Attempting summarization (note_id={note_id})")
+
+        # Create prompt for Gemini (in Russian for Russian transcriptions)
+        prompt = f"""
+Ты — ассистент для создания кратких и информативных саммари аудио-заметок.
+
+Текст транскрипции:
+{transcription}
+
+Задача: Создай краткое саммари (2-3 предложения), выделяя ключевые моменты и основную идею заметки.
+
+Саммари:
+"""
+
+        # Get working model (try global model or get a new one)
+        current_model = model if model is not None else get_working_model()
+
+        logger.info("Calling Gemini API", note_id=note_id, model=current_model.model_name)
+
+        # Call Gemini API with timeout
+        response = await asyncio.wait_for(
+            asyncio.to_thread(current_model.generate_content, prompt), timeout=GEMINI_TIMEOUT
+        )
+        summary = response.text.strip()
+
+        logger.info(
+            "Summary generated",
+            note_id=note_id,
+            summary_length=len(summary),
+            summary_preview=summary[:SUMMARY_PREVIEW_LENGTH],
+        )
+
+        return summary
+
+    except Exception as e:
+        logger.error(f"Summarization attempt failed: {e}", note_id=note_id)
+        raise
+
+
 async def process_summarization(note_id: int) -> None:
     """
     Process summarization for a note.
@@ -116,9 +199,7 @@ async def process_summarization(note_id: int) -> None:
     async with async_session() as db:
         try:
             # 1. Fetch note from database
-            result = await db.execute(
-                select(AudioNote).where(AudioNote.id == note_id)
-            )
+            result = await db.execute(select(AudioNote).where(AudioNote.id == note_id))
             note = result.scalar_one_or_none()
 
             if not note:
@@ -128,165 +209,69 @@ async def process_summarization(note_id: int) -> None:
             if not note.transcription:
                 logger.error("Note has no transcription", note_id=note_id)
                 await db.execute(
-                    update(AudioNote)
-                    .where(AudioNote.id == note_id)
-                    .values(status="failed")
+                    update(AudioNote).where(AudioNote.id == note_id).values(status="failed")
                 )
                 await db.commit()
                 return
 
-            logger.info("Summarizing note",
-                       note_id=note.id,
-                       transcription_length=len(note.transcription))
+            logger.info(
+                "Summarizing note", note_id=note.id, transcription_length=len(note.transcription)
+            )
 
             # 2. Update status to processing
             await db.execute(
-                update(AudioNote)
-                .where(AudioNote.id == note_id)
-                .values(status="processing_summary")
+                update(AudioNote).where(AudioNote.id == note_id).values(status="processing_summary")
             )
             await db.commit()
 
-            # 3. Create prompt for Gemini (in Russian for Russian transcriptions)
-            prompt = f"""
-Ты — ассистент для создания кратких и информативных саммари аудио-заметок.
-
-Текст транскрипции:
-{note.transcription}
-
-Задача: Создай краткое саммари (2-3 предложения), выделяя ключевые моменты и основную идею заметки.
-
-Саммари:
-"""
-
-            # 4. Call Gemini API with timeout
+            # 3. Summarize with retry logic
             start_time = time.time()
             try:
-                # If model not initialized at startup, try now
-                current_model = model if model is not None else get_working_model()
-
-                logger.info("Calling Gemini API",
-                           note_id=note_id,
-                           model=current_model.model_name)
-                response = await asyncio.wait_for(
-                    asyncio.to_thread(current_model.generate_content, prompt),
-                    timeout=GEMINI_TIMEOUT
-                )
-                summary = response.text.strip()
+                summary = await summarize_with_retry(note.transcription, note_id)
                 duration = time.time() - start_time
-
-                logger.info("Summary generated",
-                           note_id=note_id,
-                           summary_length=len(summary),
-                           summary_preview=summary[:SUMMARY_PREVIEW_LENGTH],
-                           duration_seconds=round(duration, 2))
-
-            except asyncio.TimeoutError:
-                logger.error("Gemini API timeout",
-                           note_id=note_id,
-                           timeout_seconds=GEMINI_TIMEOUT)
-                summary = "Failed to create summary: request timeout exceeded."
+                logger.info(
+                    "Summarization completed", note_id=note_id, duration_seconds=round(duration, 2)
+                )
 
             except Exception as e:
-                error_msg = str(e)
-                logger.error("Gemini API error",
-                           note_id=note_id,
-                           error=error_msg,
-                           model=current_model.model_name if current_model else 'unknown')
+                # If all retries failed, use fallback summary
+                logger.error(
+                    "All summarization attempts failed, using fallback",
+                    note_id=note_id,
+                    error=str(e),
+                )
+                max_len = TRANSCRIPTION_PREVIEW_LENGTH
+                transcription_preview = (
+                    note.transcription[:max_len] + "..."
+                    if len(note.transcription) > max_len
+                    else note.transcription
+                )
+                summary = f"Audio note. Content: {transcription_preview}"
 
-                # Detailed error diagnostics
-                if "404" in error_msg or "not found" in error_msg.lower():
-                    logger.error("Model not found - API version or model name may be incorrect",
-                               model=current_model.model_name if current_model else 'unknown',
-                               docs_url="https://ai.google.dev/models/gemini")
-
-                if "v1beta" in error_msg:
-                    logger.error("API version v1beta may not support this model",
-                               suggestion="Consider using gemini-1.0-pro or updating the SDK")
-
-                if "API_KEY" in error_msg.upper():
-                    logger.error("API key issue detected")
-
-                # Try remaining models from the list
-                logger.info("Attempting fallback models",
-                           note_id=note_id,
-                           tried_models=[current_model.model_name if current_model else 'unknown'])
-                summary = None
-
-                for fallback_model_name in GEMINI_MODELS:
-                    # Skip the model that already failed
-                    if current_model and fallback_model_name == current_model.model_name:
-                        continue
-
-                    try:
-                        logger.info("Trying fallback model",
-                                   note_id=note_id,
-                                   model=fallback_model_name)
-                        fallback_model = genai.GenerativeModel(fallback_model_name)
-                        response = await asyncio.wait_for(
-                            asyncio.to_thread(fallback_model.generate_content, prompt),
-                            timeout=GEMINI_TIMEOUT
-                        )
-                        summary = response.text.strip()
-                        logger.info("Fallback model succeeded",
-                                   note_id=note_id,
-                                   model=fallback_model_name,
-                                   summary_length=len(summary))
-                        break
-                    except Exception as fallback_error:
-                        logger.warning("Fallback model failed",
-                                      note_id=note_id,
-                                      model=fallback_model_name,
-                                      error=str(fallback_error))
-                        continue
-
-                # If all models failed, use a simple fallback
-                if summary is None:
-                    logger.error("All Gemini models failed",
-                               note_id=note_id,
-                               tried_models=GEMINI_MODELS)
-                    logger.error("Using fallback summary based on transcription", note_id=note_id)
-                    # Create a simple summary from the beginning of transcription
-                    max_len = TRANSCRIPTION_PREVIEW_LENGTH
-                    transcription_preview = (
-                        note.transcription[:max_len] + "..."
-                        if len(note.transcription) > max_len
-                        else note.transcription
-                    )
-                    summary = f"Audio note. Content: {transcription_preview}"
-
-            # 5. Update note in database
+            # 4. Update note in database
             await db.execute(
                 update(AudioNote)
                 .where(AudioNote.id == note_id)
-                .values(
-                    summary=summary,
-                    status="completed"
-                )
+                .values(summary=summary, status="completed")
             )
             await db.commit()
 
-            logger.info("Note summarization completed",
-                       note_id=note_id,
-                       summary_length=len(summary))
+            logger.info(
+                "Note summarization completed", note_id=note_id, summary_length=len(summary)
+            )
 
         except Exception as e:
-            logger.error("Error summarizing note",
-                        note_id=note_id,
-                        error=str(e),
-                        exc_info=True)
+            logger.error("Error summarizing note", note_id=note_id, error=str(e), exc_info=True)
             # Update status to failed
             try:
                 await db.execute(
-                    update(AudioNote)
-                    .where(AudioNote.id == note_id)
-                    .values(status="failed")
+                    update(AudioNote).where(AudioNote.id == note_id).values(status="failed")
                 )
                 await db.commit()
             except Exception as db_error:
-                logger.error("Failed to update status to failed",
-                           note_id=note_id,
-                           error=str(db_error))
+                logger.error(
+                    "Failed to update status to failed", note_id=note_id, error=str(db_error)
+                )
 
 
 async def start_worker() -> None:
@@ -318,28 +303,36 @@ async def start_worker() -> None:
         logger.info("Listening on queue 'summarization'", queue_name=queue.name)
         logger.info("Waiting for messages... Press CTRL+C to exit")
 
-        # Start consuming messages
-        async with queue.iterator() as queue_iter:
-            async for message in queue_iter:
-                async with message.process():
-                    try:
-                        # Decode and parse task data
-                        task_data = json.loads(message.body.decode())
+        # Start consuming messages with graceful shutdown support
+        try:
+            async with queue.iterator() as queue_iter:
+                async for message in queue_iter:
+                    # Check for shutdown signal
+                    if shutdown_event.is_set():
+                        logger.info("Shutdown signal received, stopping message processing")
+                        break
 
-                        logger.info("Received task", task=task_data)
-                        note_id = task_data.get("note_id")
+                    async with message.process():
+                        try:
+                            # Decode and parse task data
+                            task_data = json.loads(message.body.decode())
 
-                        if not note_id:
-                            logger.warning("Received message without note_id", task=task_data)
-                            continue
+                            logger.info("Received task", task=task_data)
+                            note_id = task_data.get("note_id")
 
-                        # Process the task
-                        await process_summarization(note_id)
+                            if not note_id:
+                                logger.warning("Received message without note_id", task=task_data)
+                                continue
 
-                    except Exception as e:
-                        logger.error("Error processing task",
-                                   error=str(e),
-                                   exc_info=True)
+                            # Process the task
+                            await process_summarization(note_id)
+
+                        except Exception as e:
+                            logger.error("Error processing task", error=str(e), exc_info=True)
+        except Exception as e:
+            logger.exception("Worker error", exc_info=e)
+        finally:
+            logger.info("Worker shutting down gracefully")
 
 
 if __name__ == "__main__":

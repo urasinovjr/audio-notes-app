@@ -1,5 +1,13 @@
 # 🎙️ Audio Notes App
 
+![CI/CD Pipeline](https://github.com/urasinovjr/audio-notes-app/actions/workflows/ci.yml/badge.svg)
+![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue.svg)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3-orange.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+[![codecov](https://codecov.io/gh/urasinovjr/audio-notes-app/branch/main/graph/badge.svg)](https://codecov.io/gh/urasinovjr/audio-notes-app)
+
 Веб-приложение для управления аудио-заметками с автоматической транскрибацией и суммаризацией на основе AI.
 
 ## 📋 Содержание
@@ -12,6 +20,7 @@
 - [Конфигурация](#конфигурация)
 - [API Документация](#api-документация)
 - [Тестирование](#тестирование)
+- [CI/CD](#cicd)
 - [Структура проекта](#структура-проекта)
 - [Разработка](#разработка)
 
@@ -260,6 +269,78 @@ docker logs -f audio-notes-worker
 tail -f logs/transcription_worker_$(date +%Y-%m-%d).log
 tail -f logs/summarization_worker_$(date +%Y-%m-%d).log
 ```
+
+---
+
+## 🔄 CI/CD
+
+Проект использует GitHub Actions для автоматизации всех этапов разработки и деплоя.
+
+### Workflows
+
+#### CI/CD Pipeline (.github/workflows/ci.yml)
+
+Основной workflow, который запускается при каждом push и pull request:
+
+- ✅ **Linting** (Ruff) — проверка качества кода
+- ✅ **Tests** — запуск 77 тестов с покрытием 43%
+- ✅ **Docker build & push** — сборка и публикация образов в Docker Hub
+- ✅ **Security scan** (Trivy) — сканирование на уязвимости
+
+#### PR Checks (.github/workflows/pr-checks.yml)
+
+Автоматические проверки для Pull Requests:
+
+- ✅ **PR title validation** — проверка соответствия Conventional Commits
+- ✅ **Auto-labeling** — автоматическое добавление меток
+
+#### Dependency Review (.github/workflows/dependency-review.yml)
+
+Проверка зависимостей на безопасность:
+
+- ✅ **Security vulnerability checks** — поиск уязвимостей в зависимостях
+- ✅ **License compliance** — проверка лицензий
+
+### GitHub Secrets
+
+Для работы CI/CD pipeline необходимо настроить следующие secrets в GitHub:
+
+**Обязательные:**
+- `DOCKER_USERNAME` — Docker Hub username
+- `DOCKER_PASSWORD` — Docker Hub access token
+
+**Опциональные (для deploy):**
+- `SERVER_HOST` — IP адрес production сервера
+- `SERVER_USER` — SSH username
+- `SSH_PRIVATE_KEY` — SSH приватный ключ
+
+**Настройка secrets:**
+1. Перейти в Settings → Secrets and variables → Actions
+2. Нажать "New repository secret"
+3. Добавить каждый secret
+
+### Локальная разработка
+
+```bash
+# Установить pre-commit hooks
+uv sync --extra dev
+uv run pre-commit install
+
+# Запустить linting вручную
+uv run ruff check app/ tests/
+uv run ruff format app/ tests/
+
+# Запустить тесты с coverage
+uv run pytest tests/ -v --cov=app --cov-report=term-missing
+```
+
+### Покрытие тестами
+
+Текущее покрытие кода тестами: **43%**
+
+Цели покрытия (настроены в `codecov.yml`):
+- **Project target:** 40%
+- **Patch target:** 50%
 
 ---
 

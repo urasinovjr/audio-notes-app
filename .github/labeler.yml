@@ -1,0 +1,23 @@
+# Автоматическое добавление меток к PR на основе измененных файлов
+
+backend:
+  - 'app/**/*'
+  - 'Dockerfile'
+
+tests:
+  - 'tests/**/*'
+
+workflows:
+  - '.github/workflows/**/*'
+
+documentation:
+  - '*.md'
+  - 'docs/**/*'
+
+dependencies:
+  - 'pyproject.toml'
+  - 'uv.lock'
+  - 'requirements.txt'
+
+database:
+  - 'alembic/**/*'

@@ -5,9 +5,7 @@ This module defines all application settings loaded from environment variables.
 Settings are managed using Pydantic BaseSettings for validation and type safety.
 """
 
-from typing import List
-
-from pydantic import Field, PostgresDsn
+from pydantic import Field, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,7 +29,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # CORS settings
-    CORS_ORIGINS: List[str] = Field(
+    CORS_ORIGINS: list[str] = Field(
         default=["http://localhost:3000", "http://localhost:5173"],
         description="Allowed CORS origins",
     )
@@ -60,7 +58,7 @@ class Settings(BaseSettings):
         description="Maximum audio file size in megabytes",
     )
     MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50 MB (for backward compatibility)
-    ALLOWED_AUDIO_FORMATS: List[str] = [
+    ALLOWED_AUDIO_FORMATS: list[str] = [
         "audio/mpeg",
         "audio/mp3",
         "audio/wav",
@@ -103,6 +101,31 @@ class Settings(BaseSettings):
         default="your-secret-key-change-in-production",
         description="Secret key for signing tokens",
     )
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Parse CORS origins from string or list."""
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",")]
+        return v
+
+    @field_validator("DEEPGRAM_API_KEY", "GEMINI_API_KEY")
+    @classmethod
+    def validate_api_keys(cls, v, info):
+        """Validate that API keys are provided."""
+        if not v or v == "your_key_here":
+            raise ValueError(f"{info.field_name} is required. Please set it in .env file.")
+        return v
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def validate_database_url(cls, v):
+        """Validate database URL format."""
+        url_str = str(v)
+        if not url_str.startswith(("postgresql://", "postgresql+asyncpg://")):
+            raise ValueError("DATABASE_URL must be a valid PostgreSQL URL")
+        return v
 
 
 # Create a global settings instance

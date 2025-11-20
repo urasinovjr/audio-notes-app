@@ -5,7 +5,7 @@ This module provides async database engine, session maker, and utility functions
 for database connection management.
 """
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
