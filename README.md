@@ -232,14 +232,6 @@ uv run ruff format app/ tests/
 
 ## 📡 API Endpoints
 
-### Аутентификация
-
-```
-POST   /auth/signup        # Регистрация
-POST   /auth/signin        # Вход
-POST   /auth/signout       # Выход
-```
-
 ### Заметки
 
 ```
