@@ -1,142 +1,136 @@
-# 🎙️ Audio Notes App
+# 🎙️ Audio Notes App - Полное руководство
 
 [![CI/CD Pipeline](https://github.com/urasinovjr/audio-notes-app/actions/workflows/ci.yml/badge.svg)](https://github.com/urasinovjr/audio-notes-app/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-77%20passing-success.svg)]()
-[![Coverage](https://img.shields.io/badge/coverage-43%25-yellow.svg)]()
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](https://www.docker.com/)
 
-## Описание проекта
+## 📋 Содержание
 
-Веб-приложение для управления аудио-заметками с автоматической транскрибацией (Deepgram) и суммаризацией (Google Gemini AI).
+- [Описание проекта](#описание-проекта)
+- [Быстрый старт](#быстрый-старт)
+- [Установка и запуск](#установка-и-запуск)
+- [Авторизация](#авторизация)
+- [Работа с заметками](#работа-с-заметками)
+- [Загрузка аудио](#загрузка-аудио)
+- [Swagger UI](#swagger-ui)
+- [Примеры использования](#примеры-использования)
+- [Тестирование](#тестирование)
+- [Архитектура](#архитектура)
+- [Troubleshooting](#troubleshooting)
 
-## ✨ Основные возможности
+---
 
-### Управление заметками
-- ✅ CRUD операции (создание, чтение, обновление, удаление)
-- ✅ Загрузка аудио-файлов через WebSocket
-- ✅ Автоматическая транскрибация аудио в текст
-- ✅ Автоматическая суммаризация текста
+## 📖 Описание проекта
 
-### Поиск и фильтрация
-- ✅ Full-text поиск (case-insensitive)
-- ✅ Фильтрация по статусу (pending, processing, completed)
-- ✅ Фильтрация по тегам
-- ✅ Фильтрация по датам
-- ✅ Сортировка (по дате создания, названию, статусу)
-- ✅ Пагинация
+**Audio Notes App** - это веб-приложение для управления аудиозаметками с автоматической транскрибацией и суммаризацией.
 
-### Авторизация
-- ✅ SuperTokens integration
-- ✅ JWT authentication
-- ✅ Изоляция данных между пользователями
+### Как это работает:
 
-### Безопасность
-- ✅ Rate limiting (10-50 запросов/минуту)
-- ✅ CORS настройки
-- ✅ Security headers (6 headers)
-- ✅ Input validation
-- ✅ Error handling с retry logic
+1. 📝 Пользователь создает заметку
+2. 🎤 Загружает аудиофайл
+3. 🤖 Система автоматически:
+   - Транскрибирует аудио в текст (Deepgram AI)
+   - Создает краткое содержание (Google Gemini AI)
+4. ✅ Результат сохраняется в базе данных
 
-## 🏗️ Архитектура
+### ✨ Основные возможности
 
-### Технологический стек
-- **Backend:** Python 3.11, FastAPI
-- **Database:** PostgreSQL 15
-- **Message Queue:** RabbitMQ
-- **Authentication:** SuperTokens
-- **AI Services:** Deepgram (STT), Google Gemini (Summarization)
-- **Deployment:** Docker Compose
-- **CI/CD:** GitHub Actions
+- ✅ **Авторизация**: Регистрация, вход, JWT токены
+- ✅ **CRUD заметок**: Создание, чтение, обновление, удаление
+- ✅ **Загрузка аудио**: Через WebSocket с защитой по токену
+- ✅ **Транскрибация**: Автоматическое преобразование речи в текст
+- ✅ **Суммаризация**: AI-генерация краткого содержания
+- ✅ **Поиск и фильтрация**: Full-text поиск, фильтры по статусу, тегам, датам
+- ✅ **Безопасность**: Изоляция пользователей, rate limiting, валидация
+- ✅ **Swagger UI**: Интерактивная документация API
 
-### Микросервисная архитектура (6 сервисов)
-1. **backend** - FastAPI REST API + WebSocket server
-2. **worker** - Background workers для обработки аудио
-3. **postgres** - Основная база данных
-4. **postgres-test** - Тестовая база данных
-5. **rabbitmq** - Message broker
-6. **supertokens** + **supertokens-db** - Авторизация
-
-### Структура проекта
-
-```
-audio-notes-app/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                      # CI/CD pipeline
-│       ├── pr-checks.yml               # PR validation
-│       └── dependency-review.yml       # Security checks
-├── app/
-│   ├── api/
-│   │   └── routes/
-│   │       ├── audio_notes.py          # REST API endpoints
-│   │       └── websocket.py            # WebSocket upload
-│   ├── auth/
-│   │   ├── config.py                   # SuperTokens config
-│   │   ├── dependencies.py             # Auth dependencies
-│   │   └── hooks.py                    # Auth lifecycle hooks
-│   ├── core/
-│   │   ├── config.py                   # Settings & env validation
-│   │   ├── exceptions.py               # Custom exceptions
-│   │   ├── rate_limit.py               # Rate limiting
-│   │   └── security.py                 # Security headers
-│   ├── db/
-│   │   ├── database.py                 # DB connection
-│   │   └── models.py                   # SQLAlchemy models
-│   ├── schemas/
-│   │   └── audio_note.py               # Pydantic schemas
-│   ├── services/
-│   │   ├── audio_note.py               # Business logic
-│   │   └── queue.py                    # RabbitMQ service
-│   ├── workers/
-│   │   ├── transcription_worker.py     # Deepgram worker
-│   │   └── summarization_worker.py     # Gemini worker
-│   └── main.py                         # FastAPI app
-├── tests/
-│   ├── conftest.py                     # Test fixtures
-│   ├── test_api_notes.py               # API tests (18)
-│   ├── test_auth.py                    # Auth tests (19)
-│   ├── test_filters.py                 # Filter tests (18)
-│   ├── test_websocket.py               # WebSocket tests (17)
-│   └── test_workers.py                 # Worker tests (5)
-├── migrations/                         # Alembic migrations
-├── docker-compose.yml                  # Docker orchestration
-├── Dockerfile                          # Backend image
-├── Dockerfile.worker                   # Worker image
-├── pyproject.toml                      # Dependencies (uv)
-├── pytest.ini                          # Test configuration
-├── .ruff.toml                          # Linting config
-├── .pre-commit-config.yaml             # Git hooks
-├── codecov.yml                         # Coverage config
-└── README.md                           # This file
-```
+---
 
 ## 🚀 Быстрый старт
 
-### Предварительные требования
-- Docker & Docker Compose
-- Python 3.11+
-- uv (package manager)
-
-### 1. Клонировать репозиторий
+### Для самых нетерпеливых (3 минуты)
 
 ```bash
-git clone https://github.com/urasinovjr/audio-notes-app.git
+# 1. Клонировать репозиторий
+git clone <repository-url>
 cd audio-notes-app
+
+# 2. Настроить переменные окружения
+cp .env.example .env
+# Добавьте ваши API ключи в .env:
+# - DEEPGRAM_API_KEY (для транскрибации)
+# - GEMINI_API_KEY (для суммаризации)
+
+# 3. Запустить все сервисы
+docker-compose up -d
+
+# 4. Дождаться запуска (30 секунд)
+sleep 30
+
+# 5. Открыть Swagger UI
+open http://localhost:8000/docs
+
+# 6. Запустить простой тест
+python3 simple_audio_test.py your_audio_file.wav
 ```
 
-### 2. Настроить окружение
+**Готово!** Приложение работает на http://localhost:8000
+
+---
+
+## 🔧 Установка и запуск
+
+### Требования
+
+- **Docker** и **Docker Compose**
+- **Python 3.13+** (для локальной разработки)
+- **API ключи**:
+  - [Deepgram API Key](https://deepgram.com/) - для транскрибации
+  - [Google Gemini API Key](https://makersuite.google.com/app/apikey) - для суммаризации
+
+### Шаг 1: Подготовка
 
 ```bash
-# Скопировать .env.example
-cp .env.example .env
+# Клонировать репозиторий
+git clone <repository-url>
+cd audio-notes-app
 
-# Отредактировать .env (добавить API ключи)
-# DEEPGRAM_API_KEY=your_deepgram_key
-# GEMINI_API_KEY=your_gemini_key
+# Создать .env файл
+cp .env.example .env
 ```
 
-### 3. Запустить приложение
+### Шаг 2: Настройка .env
+
+Откройте `.env` и заполните:
+
+```env
+# API Keys (ОБЯЗАТЕЛЬНО!)
+DEEPGRAM_API_KEY=your_deepgram_key_here
+GEMINI_API_KEY=your_gemini_key_here
+
+# Database (можно оставить как есть)
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/audio_notes
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=audio_notes
+
+# RabbitMQ (можно оставить как есть)
+RABBITMQ_HOST=rabbitmq
+RABBITMQ_PORT=5672
+RABBITMQ_USER=guest
+RABBITMQ_PASSWORD=guest
+
+# SuperTokens (можно оставить как есть)
+SUPERTOKENS_CONNECTION_URI=http://supertokens:3567
+SUPERTOKENS_API_KEY=your_secret_key_here
+
+# Приложение
+DEBUG=false
+UPLOAD_DIR=./uploads
+```
+
+### Шаг 3: Запуск
 
 ```bash
 # Запустить все сервисы
@@ -145,213 +139,937 @@ docker-compose up -d
 # Проверить статус
 docker-compose ps
 
-# Посмотреть логи
-docker-compose logs -f backend
+# Проверить логи
+docker logs audio-notes-backend
+
+# Дождаться готовности (обычно 30 секунд)
+curl http://localhost:8000/health
 ```
 
-### 4. Открыть документацию API
+Ожидаемый ответ:
+```json
+{
+  "status": "ok",
+  "version": "0.1.0"
+}
+```
 
+### Остановка
+
+```bash
+# Остановить все сервисы
+docker-compose down
+
+# Остановить и удалить данные
+docker-compose down -v
 ```
-http://localhost:8000/docs
+
+---
+
+## 🔐 Авторизация
+
+Приложение использует два типа авторизации:
+
+1. **Cookie-based** (SuperTokens) - для веб-приложений
+2. **Bearer Token** (JWT) - для API и Swagger UI
+
+### Регистрация нового пользователя
+
+**Через API:**
+
+```bash
+curl -X POST "http://localhost:8000/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePassword123!"
+  }'
 ```
+
+**Ответ:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user_id": "7ff43459-6b5f-4e1c-a1c6-726a41c73aa5",
+  "token_type": "Bearer"
+}
+```
+
+**Через Swagger UI:**
+
+1. Откройте http://localhost:8000/docs
+2. Найдите `POST /auth/register`
+3. Нажмите "Try it out"
+4. Введите email и пароль
+5. Нажмите "Execute"
+6. Скопируйте `access_token` из ответа
+
+### Вход существующего пользователя
+
+**Через API:**
+
+```bash
+curl -X POST "http://localhost:8000/auth/token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePassword123!"
+  }'
+```
+
+**Ответ:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user_id": "7ff43459-6b5f-4e1c-a1c6-726a41c73aa5",
+  "token_type": "Bearer"
+}
+```
+
+### Использование токена
+
+**В командной строке:**
+
+```bash
+# Сохранить токен в переменную
+TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+# Использовать в запросах
+curl -X GET "http://localhost:8000/api/notes" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**В Swagger UI:**
+
+1. Скопируйте `access_token` из `/auth/register` или `/auth/token`
+2. Нажмите кнопку **"Authorize"** (🔓 замочек) в правом верхнем углу
+3. Вставьте токен в поле (Swagger автоматически добавит "Bearer" префикс)
+4. Нажмите **"Authorize"** → **"Close"**
+5. Теперь все запросы будут использовать этот токен
+
+**Важно:** Токен действителен 7 дней. После истечения получите новый через `/auth/token`.
+
+---
+
+## 📝 Работа с заметками
+
+### 1. Создание заметки
+
+**Через API:**
+
+```bash
+TOKEN="your_token_here"
+
+curl -X POST "http://localhost:8000/api/notes" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Встреча с командой",
+    "tags": "работа,встреча,важное",
+    "text_notes": "Обсудить планы на следующий квартал"
+  }'
+```
+
+**Ответ:**
+```json
+{
+  "id": 1,
+  "user_id": "7ff43459-6b5f-4e1c-a1c6-726a41c73aa5",
+  "title": "Встреча с командой",
+  "tags": "работа,встреча,важное",
+  "text_notes": "Обсудить планы на следующий квартал",
+  "file_path": "placeholder.mp3",
+  "transcription": null,
+  "summary": null,
+  "status": "pending",
+  "created_at": "2025-01-20T10:00:00Z",
+  "updated_at": "2025-01-20T10:00:00Z"
+}
+```
+
+**Через Swagger UI:**
+
+1. Откройте http://localhost:8000/docs
+2. Авторизуйтесь (см. раздел "Авторизация")
+3. Найдите `POST /api/notes`
+4. Нажмите "Try it out"
+5. Заполните поля:
+   - `title`: Название заметки
+   - `tags`: Теги через запятую
+   - `text_notes`: Описание
+6. Нажмите "Execute"
+7. Запомните `id` заметки для загрузки аудио
+
+### 2. Получение заметки по ID
+
+```bash
+NOTE_ID=1
+
+curl -X GET "http://localhost:8000/api/notes/$NOTE_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### 3. Получение списка всех заметок
+
+```bash
+# Все заметки
+curl -X GET "http://localhost:8000/api/notes" \
+  -H "Authorization: Bearer $TOKEN"
+
+# С фильтрами
+curl -X GET "http://localhost:8000/api/notes?status=completed&tags=работа&limit=10" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Доступные фильтры:**
+- `status`: pending, processing, completed, failed
+- `tags`: фильтр по тегам (частичное совпадение)
+- `search`: полнотекстовый поиск по title и text_notes
+- `date_from`: фильтр по дате (формат: YYYY-MM-DD)
+- `date_to`: фильтр по дате (формат: YYYY-MM-DD)
+- `sort_by`: created_at, title, status
+- `order`: asc, desc
+- `skip`: пропустить N записей (для пагинации)
+- `limit`: вернуть максимум N записей (по умолчанию 100)
+
+### 4. Обновление заметки
+
+```bash
+curl -X PUT "http://localhost:8000/api/notes/$NOTE_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Встреча с командой (обновлено)",
+    "tags": "работа,встреча,важное,срочно",
+    "text_notes": "Обсудить планы на следующий квартал и текущие задачи"
+  }'
+```
+
+### 5. Удаление заметки
+
+```bash
+curl -X DELETE "http://localhost:8000/api/notes/$NOTE_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## 🎤 Загрузка аудио
+
+### Способ 1: Через Python (рекомендуется)
+
+**Используйте готовый скрипт `simple_audio_test.py`:**
+
+```bash
+python3 simple_audio_test.py path/to/your/audio.wav
+```
+
+Скрипт автоматически:
+1. Зарегистрирует пользователя или выполнит вход
+2. Создаст заметку
+3. Загрузит аудиофайл через WebSocket
+4. Дождется обработки
+5. Выведет результат (транскрипцию и саммаризацию)
+
+### Способ 2: Через WebSocket (для разработчиков)
+
+**Python пример:**
+
+```python
+import asyncio
+import json
+import websockets
+
+async def upload_audio(token: str, note_id: int, audio_path: str):
+    # Подключение с токеном
+    uri = f"ws://localhost:8000/ws/upload/{note_id}?token={token}"
+
+    async with websockets.connect(uri) as websocket:
+        # 1. Отправить метаданные
+        with open(audio_path, 'rb') as f:
+            audio_data = f.read()
+
+        metadata = {
+            "filename": "audio.wav",
+            "size": len(audio_data)
+        }
+        await websocket.send(json.dumps(metadata))
+
+        # 2. Получить подтверждение
+        response = await websocket.recv()
+        print(f"Server: {response}")
+
+        # 3. Отправить аудио данные
+        chunk_size = 8192
+        for i in range(0, len(audio_data), chunk_size):
+            chunk = audio_data[i:i + chunk_size]
+            await websocket.send(chunk)
+
+        # 4. Отправить сигнал завершения
+        await websocket.send(json.dumps({"action": "done"}))
+
+        # 5. Получить финальный ответ
+        response = await websocket.recv()
+        print(f"Result: {response}")
+
+# Использование
+asyncio.run(upload_audio(
+    token="your_token_here",
+    note_id=1,
+    audio_path="audio.wav"
+))
+```
+
+**JavaScript пример:**
+
+```javascript
+const token = "your_token_here";
+const noteId = 1;
+const audioFile = document.getElementById('audio-input').files[0];
+
+// Подключение
+const ws = new WebSocket(`ws://localhost:8000/ws/upload/${noteId}?token=${token}`);
+
+ws.onopen = async () => {
+    // 1. Отправить метаданные
+    const metadata = {
+        filename: audioFile.name,
+        size: audioFile.size
+    };
+    ws.send(JSON.stringify(metadata));
+
+    // 2. Дождаться подтверждения
+    ws.onmessage = (event) => {
+        const response = JSON.parse(event.data);
+
+        if (response.status === 'ready') {
+            // 3. Отправить аудио
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                ws.send(e.target.result);
+
+                // 4. Отправить сигнал завершения
+                ws.send(JSON.stringify({action: "done"}));
+            };
+            reader.readAsArrayBuffer(audioFile);
+        } else if (response.status === 'received') {
+            console.log('Upload successful!', response);
+        }
+    };
+};
+```
+
+### Формат аудиофайлов
+
+**Поддерживаемые форматы:**
+- WAV (рекомендуется)
+- MP3
+- M4A
+- FLAC
+- OGG
+
+**Рекомендуемые параметры:**
+- Sample rate: 16000 Hz
+- Channels: Mono
+- Bitrate: 16-bit
+
+**Конвертация с помощью ffmpeg:**
+
+```bash
+# WAV → MP3
+ffmpeg -i input.wav -acodec libmp3lame -ab 128k output.mp3
+
+# MP3 → WAV (16kHz mono)
+ffmpeg -i input.mp3 -ar 16000 -ac 1 output.wav
+
+# M4A → WAV
+ffmpeg -i input.m4a -ar 16000 -ac 1 output.wav
+```
+
+---
+
+## 📚 Swagger UI
+
+### Доступ
+
+Откройте браузер: **http://localhost:8000/docs**
+
+### Авторизация в Swagger
+
+1. Нажмите кнопку **"Authorize"** (🔓 замочек) в правом верхнем углу
+2. Получите токен одним из способов:
+   - Вызовите `POST /auth/register` для нового пользователя
+   - Вызовите `POST /auth/token` для существующего
+3. Скопируйте `access_token` из ответа
+4. Вставьте в окно авторизации (без префикса "Bearer")
+5. Нажмите **"Authorize"** → **"Close"**
+
+### Основные эндпоинты
+
+**Authentication:**
+- `POST /auth/register` - Регистрация
+- `POST /auth/token` - Вход
+
+**Notes:**
+- `POST /api/notes` - Создать заметку
+- `GET /api/notes` - Список заметок (с фильтрами)
+- `GET /api/notes/{id}` - Получить заметку
+- `PUT /api/notes/{id}` - Обновить заметку
+- `DELETE /api/notes/{id}` - Удалить заметку
+
+**Health:**
+- `GET /health` - Статус приложения
+- `GET /` - Информация о версии
+
+---
+
+## 💡 Примеры использования
+
+### Сценарий 1: Быстрый тест с вашим аудио
+
+```bash
+# 1. Положите ваш аудиофайл в папку проекта
+cp ~/Downloads/my_audio.wav ./
+
+# 2. Запустите простой тест
+python3 simple_audio_test.py my_audio.wav
+
+# 3. Скрипт выведет:
+#    - Транскрипцию (текст из аудио)
+#    - Саммаризацию (краткое содержание)
+```
+
+### Сценарий 2: Полный цикл через API
+
+```bash
+# 1. Регистрация
+RESPONSE=$(curl -s -X POST "http://localhost:8000/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"Test123!"}')
+
+TOKEN=$(echo $RESPONSE | jq -r '.access_token')
+echo "Token: $TOKEN"
+
+# 2. Создание заметки
+NOTE_RESPONSE=$(curl -s -X POST "http://localhost:8000/api/notes" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Моя заметка","tags":"тест","text_notes":"Описание"}')
+
+NOTE_ID=$(echo $NOTE_RESPONSE | jq -r '.id')
+echo "Note ID: $NOTE_ID"
+
+# 3. Загрузка аудио (используйте Python скрипт)
+python3 -c "
+import asyncio
+import sys
+sys.path.append('.')
+from simple_audio_test import upload_audio_to_note
+
+asyncio.run(upload_audio_to_note('$TOKEN', $NOTE_ID, 'audio.wav'))
+"
+
+# 4. Ожидание обработки (30-60 секунд)
+sleep 60
+
+# 5. Получение результата
+curl -s -X GET "http://localhost:8000/api/notes/$NOTE_ID" \
+  -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+### Сценарий 3: Работа через Swagger UI
+
+1. **Откройте Swagger:** http://localhost:8000/docs
+
+2. **Зарегистрируйтесь:**
+   - `POST /auth/register`
+   - Email: `user@example.com`
+   - Password: `Password123!`
+   - Скопируйте `access_token`
+
+3. **Авторизуйтесь:**
+   - Нажмите кнопку "Authorize" (🔓)
+   - Вставьте токен
+   - Нажмите "Authorize" → "Close"
+
+4. **Создайте заметку:**
+   - `POST /api/notes`
+   - Заполните: title, tags, text_notes
+   - Execute
+   - Запомните ID заметки
+
+5. **Загрузите аудио:**
+   - Используйте WebSocket или Python скрипт
+   - Укажите ID заметки из шага 4
+
+6. **Проверьте результат:**
+   - `GET /api/notes/{id}`
+   - Проверьте поля `transcription` и `summary`
+
+---
 
 ## 🧪 Тестирование
 
-### Установка зависимостей
+### Автоматические тесты
+
+**Полный тест системы:**
 
 ```bash
-# Установить с тестовыми зависимостями
+# Тест авторизации + заметки + аудио
+python3 test_full_flow_with_auth.py
+```
+
+**Тест только авторизации:**
+
+```bash
+# Bash скрипт
+bash test_complete_auth.sh
+
+# Или через curl
+bash test_swagger.sh
+```
+
+**Запуск pytest тестов:**
+
+```bash
+# Установить зависимости для тестов
 uv sync --extra test
+
+# Запустить все тесты
+uv run pytest
+
+# С покрытием
+uv run pytest --cov=app --cov-report=html
+
+# Конкретный тест
+uv run pytest app/tests/test_auth.py -v
 ```
 
-### Запуск тестов
+### Простой тест с вашим аудио
+
+**Скрипт `simple_audio_test.py`** - самый простой способ протестировать систему:
 
 ```bash
-# Все тесты
-uv run pytest tests/ -v
+# Использование
+python3 simple_audio_test.py path/to/audio.wav
 
-# Конкретный модуль
-uv run pytest tests/test_api_notes.py -v
+# С указанием email (если уже есть аккаунт)
+python3 simple_audio_test.py audio.wav --email user@example.com --password Pass123!
 
-# С coverage
-uv run pytest tests/ --cov=app --cov-report=html
-
-# Открыть HTML отчет
-open htmlcov/index.html
+# Только загрузить в существующую заметку
+python3 simple_audio_test.py audio.wav --note-id 5 --token "your_token"
 ```
 
-### Статистика тестов
-- **Всего тестов:** 77
-- **Coverage:** 43%
-- **API endpoints:** 65% покрытие
-- **Services:** 72% покрытие
-- **Models:** 93% покрытие
-- **Schemas:** 100% покрытие
+**Что делает скрипт:**
 
-### Структура тестов
+1. ✅ Проверяет, что backend работает
+2. ✅ Регистрирует пользователя или выполняет вход
+3. ✅ Создает новую заметку
+4. ✅ Загружает ваш аудиофайл через WebSocket
+5. ✅ Ждет обработки (показывает прогресс)
+6. ✅ Выводит транскрипцию и саммаризацию
+
+**Пример вывода:**
 
 ```
-tests/
-├── conftest.py                 # Фикстуры (test_user, client, db_session)
-├── test_api_notes.py           # CRUD операции (18 тестов)
-├── test_auth.py                # Авторизация и изоляция (19 тестов)
-├── test_filters.py             # Фильтрация и поиск (18 тестов)
-├── test_websocket.py           # WebSocket upload (17 тестов)
-└── test_workers.py             # Background workers (5 тестов)
+=== Тест системы с аудиофайлом ===
+
+✓ Backend работает
+✓ Пользователь: test_1234@example.com
+✓ Заметка создана: ID=42
+✓ Загрузка аудио... 100%
+✓ Обработка... готово!
+
+--- РЕЗУЛЬТАТ ---
+
+Транскрипция:
+"Добрый день, это тестовая аудиозаметка.
+Система работает корректно."
+
+Саммаризация:
+"Краткое тестовое сообщение о работе системы."
+
+Статус: completed
+Время обработки: 45 секунд
 ```
 
-## 🔄 CI/CD
-
-### GitHub Actions Workflows
-
-1. **CI/CD Pipeline** (`.github/workflows/ci.yml`)
-   - ✅ Linting (Ruff)
-   - ✅ Tests (77 тестов)
-   - ✅ Security scan (Trivy)
-   - ✅ Docker build & push
-
-2. **PR Checks** (`.github/workflows/pr-checks.yml`)
-   - ✅ PR title validation (Conventional Commits)
-   - ✅ Auto-labeling
-
-3. **Dependency Review** (`.github/workflows/dependency-review.yml`)
-   - ✅ Security vulnerability checks
-   - ✅ License compliance
-
-### Локальная разработка
+### Мониторинг логов
 
 ```bash
-# Установить pre-commit hooks
-uv pip install pre-commit
-pre-commit install
+# Все сервисы
+docker-compose logs -f
 
-# Запустить linting вручную
-uv run ruff check app/ tests/
-uv run ruff format app/ tests/
+# Только backend
+docker logs -f audio-notes-backend
+
+# Только worker (обработка аудио)
+docker logs -f audio-notes-worker
+
+# Последние 100 строк
+docker logs --tail 100 audio-notes-backend
 ```
 
-## 📡 API Endpoints
+---
 
-### Заметки
+## 🏗️ Архитектура
 
-```
-GET    /api/notes          # Список заметок (с фильтрами)
-POST   /api/notes          # Создать заметку
-GET    /api/notes/{id}     # Получить заметку
-PATCH  /api/notes/{id}     # Обновить заметку
-DELETE /api/notes/{id}     # Удалить заметку
-POST   /api/notes/{id}/upload-complete  # Завершить загрузку
-```
-
-### WebSocket
+### Схема системы
 
 ```
-WS /ws/upload?note_id=X&user_id=Y  # Загрузка аудио-файла
+┌─────────────────────────────────────────────────────────────┐
+│                        CLIENT                                │
+│  (Browser / curl / Swagger UI / Python script)              │
+└────────────┬────────────────────────────────────────────────┘
+             │
+             │ HTTP/WebSocket + JWT Token
+             │
+┌────────────▼────────────────────────────────────────────────┐
+│                     FASTAPI BACKEND                          │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Routes:                                              │   │
+│  │  - /auth/register, /auth/token  (Authentication)     │   │
+│  │  - /api/notes                   (CRUD)               │   │
+│  │  - /ws/upload/{id}              (WebSocket)          │   │
+│  └──────────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Middleware:                                          │   │
+│  │  - SuperTokens Auth                                   │   │
+│  │  - CORS                                               │   │
+│  │  - Rate Limiting                                      │   │
+│  │  - Security Headers                                   │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────┬──────────────────────────────────┬──────────────────┬─┘
+      │                                  │                  │
+      │ SQL                              │ Publish          │ Auth
+      │                                  │                  │
+┌─────▼────────┐            ┌───────────▼────────┐  ┌──────▼──────┐
+│  PostgreSQL  │            │     RabbitMQ       │  │ SuperTokens │
+│              │            │   Message Queue    │  │    Core     │
+│  - notes     │            └───────────┬────────┘  └─────────────┘
+│  - users     │                        │
+└──────────────┘                        │ Consume
+                                        │
+                          ┌─────────────▼────────────┐
+                          │    BACKGROUND WORKER     │
+                          │                          │
+                          │  1. Get audio from DB    │
+                          │  2. Deepgram → Text      │
+                          │  3. Gemini → Summary     │
+                          │  4. Update DB            │
+                          └──────────────────────────┘
 ```
 
-### Параметры фильтрации
-- `search` - полнотекстовый поиск (case-insensitive)
-- `status` - фильтр по статусу (pending, processing, completed)
-- `tags` - фильтр по тегам (comma-separated)
-- `date_from` - фильтр от даты (ISO 8601)
-- `date_to` - фильтр до даты (ISO 8601)
-- `sort_by` - сортировка (created_at, title, status)
-- `order` - порядок (asc, desc)
-- `limit` - количество (default: 100)
-- `skip` - пропустить (default: 0)
+### Технологический стек
 
-## 🔐 Безопасность
+**Backend:**
+- Python 3.13
+- FastAPI (веб-фреймворк)
+- SQLAlchemy 2.0 (ORM)
+- Alembic (миграции)
+- Pydantic (валидация)
 
-### Реализованные меры
-- **Rate Limiting:** 10-50 запросов/минуту по endpoint
-- **CORS:** Настроенные origins для frontend
-- **Security Headers:** 6 headers (X-Frame-Options, CSP, HSTS, etc.)
-- **Input Validation:** Pydantic validators для всех полей
-- **Error Handling:** Глобальные exception handlers
-- **Retry Logic:** 3 попытки для external API с exponential backoff
+**Database:**
+- PostgreSQL 15
+- asyncpg (асинхронный драйвер)
 
-### Environment Variables
-Все чувствительные данные в `.env`:
-- `DEEPGRAM_API_KEY` - Deepgram API ключ
-- `GEMINI_API_KEY` - Google Gemini API ключ
-- `DATABASE_URL` - PostgreSQL connection string
-- `RABBITMQ_URL` - RabbitMQ connection string
-- `SUPERTOKENS_API_KEY` - SuperTokens ключ
+**Message Queue:**
+- RabbitMQ (aio-pika)
+- Обработка аудио в фоне
 
-## 📊 Мониторинг и логирование
+**Authentication:**
+- SuperTokens (cookie-based)
+- JWT tokens (Bearer для API)
 
-### Loguru логирование
-- Автоматическая ротация (7 дней)
-- Structured logs (JSON)
-- Логи для всех компонентов:
-  - API requests/responses
-  - Worker processing
-  - External API calls
-  - Errors and exceptions
+**AI Services:**
+- Deepgram (Speech-to-Text)
+- Google Gemini (Summarization)
 
-### Просмотр логов
+**Infrastructure:**
+- Docker & Docker Compose
+- Nginx (опционально)
+- GitHub Actions (CI/CD)
+
+### Структура проекта
+
+```
+audio-notes-app/
+├── app/
+│   ├── api/                          # API endpoints
+│   │   ├── routes/
+│   │   │   ├── audio_notes.py       # CRUD заметок
+│   │   │   ├── auth_helper.py       # Авторизация
+│   │   │   └── websocket.py         # WebSocket загрузка
+│   │   └── __init__.py
+│   ├── auth/                         # Авторизация
+│   │   ├── dependencies.py          # JWT + SuperTokens
+│   │   └── hooks.py
+│   ├── core/                         # Ядро приложения
+│   │   ├── config.py                # Настройки
+│   │   ├── exceptions.py            # Обработка ошибок
+│   │   ├── rate_limit.py            # Rate limiting
+│   │   ├── security.py              # Security headers
+│   │   └── supertokens.py           # SuperTokens config
+│   ├── db/                           # База данных
+│   │   ├── models.py                # SQLAlchemy модели
+│   │   ├── database.py              # Подключение к БД
+│   │   └── migrations/              # Alembic миграции
+│   ├── schemas/                      # Pydantic схемы
+│   │   └── audio_note.py
+│   ├── services/                     # Бизнес-логика
+│   │   ├── audio_processor.py       # Обработка аудио
+│   │   ├── deepgram_service.py      # Транскрибация
+│   │   ├── gemini_service.py        # Суммаризация
+│   │   ├── queue.py                 # RabbitMQ
+│   │   └── worker.py                # Background worker
+│   ├── tests/                        # Тесты
+│   └── main.py                       # Entry point
+├── uploads/                          # Загруженные аудио
+├── docker-compose.yml                # Docker Compose
+├── Dockerfile                        # Backend image
+├── pyproject.toml                    # Зависимости (uv)
+├── .env.example                      # Пример .env
+├── README.md                         # Эта документация
+├── simple_audio_test.py              # Простой тест
+├── test_full_flow_with_auth.py       # Полный тест
+└── test_complete_auth.sh             # Тест авторизации
+```
+
+### Процесс обработки аудио
+
+```
+1. [Client] Загружает аудио через WebSocket
+                    ↓
+2. [Backend] Сохраняет файл в ./uploads/
+            Обновляет note.status = "processing"
+            Отправляет задачу в RabbitMQ
+                    ↓
+3. [Worker] Получает задачу из очереди
+            ↓
+4. [Worker] → [Deepgram API]
+            Транскрибирует аудио → текст
+            ↓
+5. [Worker] → [Gemini API]
+            Генерирует саммаризацию текста
+            ↓
+6. [Worker] Обновляет БД:
+            - note.transcription = текст
+            - note.summary = краткое содержание
+            - note.status = "completed"
+                    ↓
+7. [Client] Получает результат через GET /api/notes/{id}
+```
+
+### Безопасность
+
+**Уровни защиты:**
+
+1. **Авторизация:**
+   - JWT токены с 7-дневным сроком действия
+   - Изоляция данных между пользователями
+   - Проверка прав доступа на каждом эндпоинте
+
+2. **Rate Limiting:**
+   - 10-50 запросов в минуту на пользователя
+   - Защита от DDoS и брутфорса
+
+3. **Валидация:**
+   - Pydantic схемы для всех входящих данных
+   - Email валидация
+   - Проверка типов файлов
+
+4. **Security Headers:**
+   - X-Content-Type-Options
+   - X-Frame-Options
+   - X-XSS-Protection
+   - Strict-Transport-Security
+   - Content-Security-Policy
+   - Permissions-Policy
+
+5. **CORS:**
+   - Ограничение доменов
+   - Контроль методов и заголовков
+
+---
+
+## 🔧 Troubleshooting
+
+### Backend не запускается
+
+**Проблема:** `docker-compose up` возвращает ошибку
+
+**Решение:**
 
 ```bash
-# Backend логи
-docker logs audio-notes-backend -f
+# 1. Проверить логи
+docker-compose logs backend
 
-# Worker логи
-docker logs audio-notes-worker -f
+# 2. Проверить .env файл
+cat .env | grep -E "(DEEPGRAM|GEMINI|DATABASE)"
 
-# RabbitMQ логи
-docker logs audio-notes-rabbitmq -f
+# 3. Пересобрать образы
+docker-compose build --no-cache
+docker-compose up -d
+
+# 4. Проверить порты
+lsof -i :8000  # Порт свободен?
 ```
 
-## 🛠️ Разработка
+### База данных не работает
 
-### Установка для разработки
+**Проблема:** `Connection refused` к PostgreSQL
+
+**Решение:**
 
 ```bash
-# Установить с dev зависимостями
-uv sync --extra dev
+# 1. Проверить что PostgreSQL запущен
+docker ps | grep postgres
 
-# Запустить pre-commit hooks
-pre-commit install
+# 2. Проверить логи
+docker logs audio-notes-db
+
+# 3. Пересоздать БД
+docker-compose down -v
+docker-compose up -d db
+sleep 10
+docker-compose up -d backend
 ```
 
-### Создание миграций
+### Транскрибация не работает
+
+**Проблема:** `status: failed` после загрузки аудио
+
+**Решение:**
 
 ```bash
-# Создать новую миграцию
-docker-compose exec backend alembic revision --autogenerate -m "description"
+# 1. Проверить worker логи
+docker logs audio-notes-worker
 
-# Применить миграции
-docker-compose exec backend alembic upgrade head
+# 2. Проверить API ключи
+echo $DEEPGRAM_API_KEY
+echo $GEMINI_API_KEY
+
+# 3. Проверить формат аудио
+ffprobe audio.wav
+
+# 4. Конвертировать в WAV
+ffmpeg -i audio.mp3 -ar 16000 -ac 1 audio.wav
 ```
 
-### Code Style
-- **Linter:** Ruff
-- **Formatter:** Ruff
-- **Type Checker:** Mypy (опционально)
-- **Conventions:** PEP 8
+### WebSocket connection failed
 
-## 🤝 Contributing
+**Проблема:** Не удается подключиться к WebSocket
 
-### Workflow
-1. Fork репозиторий
-2. Создать feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit изменения (`git commit -m 'feat: add amazing feature'`)
-4. Push в branch (`git push origin feature/AmazingFeature`)
-5. Открыть Pull Request
+**Решение:**
 
-### Commit Messages
-Используйте Conventional Commits:
-- `feat:` - новая функциональность
-- `fix:` - исправление бага
-- `docs:` - изменения в документации
-- `test:` - добавление тестов
-- `refactor:` - рефакторинг кода
-- `chore:` - прочие изменения
+```bash
+# 1. Проверить что backend работает
+curl http://localhost:8000/health
+
+# 2. Проверить токен
+# Токен должен быть валидным и не истекшим
+
+# 3. Проверить note_id
+# Заметка должна существовать и принадлежать пользователю
+
+# 4. Тест WebSocket
+python3 -c "
+import asyncio
+import websockets
+
+async def test():
+    uri = 'ws://localhost:8000/ws/upload/1?token=YOUR_TOKEN'
+    async with websockets.connect(uri) as ws:
+        print('Connected!')
+
+asyncio.run(test())
+"
+```
+
+### 401 Unauthorized
+
+**Проблема:** Все запросы возвращают 401
+
+**Решение:**
+
+```bash
+# 1. Получить новый токен
+curl -X POST "http://localhost:8000/auth/token" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"Pass123!"}'
+
+# 2. Проверить формат токена в запросе
+# Правильно: Authorization: Bearer eyJhbGc...
+# Неправильно: Authorization: eyJhbGc...
+
+# 3. Проверить срок действия токена (7 дней)
+```
+
+### Медленная обработка аудио
+
+**Проблема:** Обработка занимает более 2 минут
+
+**Возможные причины:**
+
+1. **Большой файл:** Deepgram может медленно обрабатывать файлы > 10MB
+2. **Медленный интернет:** API запросы к Deepgram/Gemini
+3. **Rate limiting:** API ограничения
+
+**Решение:**
+
+```bash
+# 1. Сжать аудио
+ffmpeg -i large.wav -ar 16000 -ac 1 -b:a 128k small.wav
+
+# 2. Проверить интернет
+ping -c 5 api.deepgram.com
+
+# 3. Проверить worker логи
+docker logs -f audio-notes-worker
+```
+
+### Ошибка "Module not found"
+
+**Проблема:** ImportError при запуске
+
+**Решение:**
+
+```bash
+# В Docker контейнере
+docker-compose exec backend bash
+uv sync
+exit
+
+# Локально
+uv sync
+uv run python app/main.py
+```
+
+---
 
 ## 📄 Лицензия
 
-Этот проект создан в рамках тестового задания
+Проект сделан в рамках тестового задания
 
-## 👤 Автор
+---
 
-**Даниил Урасинов**
+## 🎯 Быстрые команды
+
+```bash
+# Старт
+docker-compose up -d
+
+# Стоп
+docker-compose down
+
+# Логи
+docker logs -f audio-notes-backend
+
+# Тест
+python3 simple_audio_test.py audio.wav
+
+# Swagger
+open http://localhost:8000/docs
+
+# Health check
+curl http://localhost:8000/health
+```

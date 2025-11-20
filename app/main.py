@@ -10,6 +10,7 @@ import sys
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from loguru import logger
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -35,7 +36,60 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="Audio notes application with AI transcription and summarization",
+    swagger_ui_parameters={
+        "persistAuthorization": True,
+    },
+    openapi_tags=[
+        {
+            "name": "Authentication",
+            "description": "Authentication endpoints for Swagger/API testing. "
+            "Get your Bearer token here to access protected endpoints.",
+        },
+        {
+            "name": "Audio Notes",
+            "description": "CRUD operations for audio notes with transcription and summarization.",
+        },
+    ],
 )
+
+
+# Add security scheme for Swagger UI
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+    # Add Bearer authentication security scheme
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "Enter the access token from `/auth/token` endpoint",
+        }
+    }
+
+    # Apply security globally to all endpoints except auth endpoints
+    for path, path_item in openapi_schema["paths"].items():
+        # Skip auth endpoints
+        if path.startswith("/auth/"):
+            continue
+
+        for operation in path_item.values():
+            if isinstance(operation, dict) and "operationId" in operation:
+                operation["security"] = [{"BearerAuth": []}]
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 # Initialize Supertokens
 init_supertokens()
