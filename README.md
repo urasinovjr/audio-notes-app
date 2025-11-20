@@ -1,472 +1,365 @@
 # 🎙️ Audio Notes App
 
-![CI/CD Pipeline](https://github.com/urasinovjr/audio-notes-app/actions/workflows/ci.yml/badge.svg)
-![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue.svg)
-![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3-orange.svg)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-[![codecov](https://codecov.io/gh/urasinovjr/audio-notes-app/branch/main/graph/badge.svg)](https://codecov.io/gh/urasinovjr/audio-notes-app)
+[![CI/CD Pipeline](https://github.com/urasinovjr/audio-notes-app/actions/workflows/ci.yml/badge.svg)](https://github.com/urasinovjr/audio-notes-app/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-77%20passing-success.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-43%25-yellow.svg)]()
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](https://www.docker.com/)
 
-Веб-приложение для управления аудио-заметками с автоматической транскрибацией и суммаризацией на основе AI.
+## Описание проекта
 
-## 📋 Содержание
+Веб-приложение для управления аудио-заметками с автоматической транскрибацией (Deepgram) и суммаризацией (Google Gemini AI).
 
-- [Описание](#описание)
-- [Технологический стек](#технологический-стек)
-- [Функциональность](#функциональность)
-- [Требования](#требования)
-- [Установка и запуск](#установка-и-запуск)
-- [Конфигурация](#конфигурация)
-- [API Документация](#api-документация)
-- [Тестирование](#тестирование)
-- [CI/CD](#cicd)
-- [Структура проекта](#структура-проекта)
-- [Разработка](#разработка)
+## ✨ Основные возможности
 
----
+### Управление заметками
+- ✅ CRUD операции (создание, чтение, обновление, удаление)
+- ✅ Загрузка аудио-файлов через WebSocket
+- ✅ Автоматическая транскрибация аудио в текст
+- ✅ Автоматическая суммаризация текста
 
-## 📖 Описание
-
-Audio Notes App — это микросервисное приложение для работы с аудио-заметками, которое позволяет:
-- Загружать аудио-файлы через WebSocket
-- Автоматически транскрибировать речь в текст (Deepgram AI)
-- Автоматически создавать краткое содержание (Google Gemini AI)
-- Управлять заметками через REST API
-- Фильтровать и искать заметки
-
----
-
-## 🛠️ Технологический стек
-
-### Backend
-- **FastAPI** — современный, быстрый веб-фреймворк
-- **SQLAlchemy** — ORM для работы с PostgreSQL
-- **Alembic** — миграции базы данных
-- **Pydantic** — валидация данных
-
-### База данных
-- **PostgreSQL 15** — основная БД для заметок
-- **PostgreSQL 15** — БД для SuperTokens (авторизация)
-
-### Очереди и фоновые задачи
-- **RabbitMQ** — брокер сообщений
-- **aio-pika** — асинхронный клиент для RabbitMQ
-- 2 worker'а для обработки:
-  - Транскрибация (Deepgram API)
-  - Суммаризация (Google Gemini API)
+### Поиск и фильтрация
+- ✅ Full-text поиск (case-insensitive)
+- ✅ Фильтрация по статусу (pending, processing, completed)
+- ✅ Фильтрация по тегам
+- ✅ Фильтрация по датам
+- ✅ Сортировка (по дате создания, названию, статусу)
+- ✅ Пагинация
 
 ### Авторизация
-- **SuperTokens** — управление пользователями и сессиями
-- JWT токены
+- ✅ SuperTokens integration
+- ✅ JWT authentication
+- ✅ Изоляция данных между пользователями
 
-### AI Интеграция
-- **Deepgram API** — распознавание речи (Speech-to-Text)
-- **Google Gemini API** — генерация саммари
+### Безопасность
+- ✅ Rate limiting (10-50 запросов/минуту)
+- ✅ CORS настройки
+- ✅ Security headers (6 headers)
+- ✅ Input validation
+- ✅ Error handling с retry logic
 
-### Логирование
-- **Loguru** — структурированное логирование с ротацией
+## 🏗️ Архитектура
 
-### Контейнеризация
-- **Docker** & **Docker Compose** — оркестрация 6 сервисов
+### Технологический стек
+- **Backend:** Python 3.11, FastAPI
+- **Database:** PostgreSQL 15
+- **Message Queue:** RabbitMQ
+- **Authentication:** SuperTokens
+- **AI Services:** Deepgram (STT), Google Gemini (Summarization)
+- **Deployment:** Docker Compose
+- **CI/CD:** GitHub Actions
 
----
+### Микросервисная архитектура (6 сервисов)
+1. **backend** - FastAPI REST API + WebSocket server
+2. **worker** - Background workers для обработки аудио
+3. **postgres** - Основная база данных
+4. **postgres-test** - Тестовая база данных
+5. **rabbitmq** - Message broker
+6. **supertokens** + **supertokens-db** - Авторизация
 
-## ✨ Функциональность
+### Структура проекта
 
-### Основные возможности
-- ✅ Загрузка аудио-файлов через WebSocket (real-time прогресс)
-- ✅ Автоматическая транскрибация аудио в текст
-- ✅ Автоматическая генерация краткого содержания
-- ✅ CRUD операции с заметками
-- ✅ Регистрация и авторизация пользователей
+```
+audio-notes-app/
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                      # CI/CD pipeline
+│       ├── pr-checks.yml               # PR validation
+│       └── dependency-review.yml       # Security checks
+├── app/
+│   ├── api/
+│   │   └── routes/
+│   │       ├── audio_notes.py          # REST API endpoints
+│   │       └── websocket.py            # WebSocket upload
+│   ├── auth/
+│   │   ├── config.py                   # SuperTokens config
+│   │   ├── dependencies.py             # Auth dependencies
+│   │   └── hooks.py                    # Auth lifecycle hooks
+│   ├── core/
+│   │   ├── config.py                   # Settings & env validation
+│   │   ├── exceptions.py               # Custom exceptions
+│   │   ├── rate_limit.py               # Rate limiting
+│   │   └── security.py                 # Security headers
+│   ├── db/
+│   │   ├── database.py                 # DB connection
+│   │   └── models.py                   # SQLAlchemy models
+│   ├── schemas/
+│   │   └── audio_note.py               # Pydantic schemas
+│   ├── services/
+│   │   ├── audio_note.py               # Business logic
+│   │   └── queue.py                    # RabbitMQ service
+│   ├── workers/
+│   │   ├── transcription_worker.py     # Deepgram worker
+│   │   └── summarization_worker.py     # Gemini worker
+│   └── main.py                         # FastAPI app
+├── tests/
+│   ├── conftest.py                     # Test fixtures
+│   ├── test_api_notes.py               # API tests (18)
+│   ├── test_auth.py                    # Auth tests (19)
+│   ├── test_filters.py                 # Filter tests (18)
+│   ├── test_websocket.py               # WebSocket tests (17)
+│   └── test_workers.py                 # Worker tests (5)
+├── migrations/                         # Alembic migrations
+├── docker-compose.yml                  # Docker orchestration
+├── Dockerfile                          # Backend image
+├── Dockerfile.worker                   # Worker image
+├── pyproject.toml                      # Dependencies (uv)
+├── pytest.ini                          # Test configuration
+├── .ruff.toml                          # Linting config
+├── .pre-commit-config.yaml             # Git hooks
+├── codecov.yml                         # Coverage config
+└── README.md                           # This file
+```
 
-### Фильтрация и поиск
-- ✅ Фильтрация по статусу (`pending`, `processing`, `completed`, `failed`)
-- ✅ Фильтрация по тегам
-- ✅ Фильтрация по датам (`date_from`, `date_to`)
-- ✅ Full-text поиск по названию, транскрипции и саммари (case-insensitive)
-- ✅ Сортировка по любому полю (ASC/DESC)
-- ✅ Пагинация (skip/limit)
+## 🚀 Быстрый старт
 
-### Логирование
-- ✅ Структурированные логи (INFO/DEBUG/ERROR)
-- ✅ Автоматическая ротация логов (1 день, хранение 7 дней)
-- ✅ Логи для всех worker'ов
+### Предварительные требования
+- Docker & Docker Compose
+- Python 3.11+
+- uv (package manager)
 
----
-
-## 📦 Требования
-
-### Обязательные
-- **Docker** >= 20.10
-- **Docker Compose** >= 2.0
-- **Python** >= 3.11 (для локальной разработки и тестирования)
-
-### API ключи (обязательно!)
-- **Deepgram API Key** — [получить здесь](https://deepgram.com/)
-- **Google Gemini API Key** — [получить здесь](https://ai.google.dev/)
-
----
-
-## 🚀 Установка и запуск
-
-### Шаг 1: Клонирование репозитория
+### 1. Клонировать репозиторий
 
 ```bash
 git clone https://github.com/urasinovjr/audio-notes-app.git
 cd audio-notes-app
 ```
 
-### Шаг 2: Создание .env файла
-
-Создайте файл `.env` в корне проекта:
+### 2. Настроить окружение
 
 ```bash
+# Скопировать .env.example
 cp .env.example .env
+
+# Отредактировать .env (добавить API ключи)
+# DEEPGRAM_API_KEY=your_deepgram_key
+# GEMINI_API_KEY=your_gemini_key
 ```
 
-Заполните обязательные переменные:
-
-```bash
-# Database
-DATABASE_URL=postgresql+asyncpg://audiouser:audiopass@postgres:5432/audio_notes_db
-
-# RabbitMQ
-RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-
-# AI APIs (ОБЯЗАТЕЛЬНО ЗАПОЛНИТЬ!)
-DEEPGRAM_API_KEY=your_deepgram_api_key_here
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# SuperTokens
-SUPERTOKENS_CONNECTION_URI=http://supertokens:3567
-SUPERTOKENS_API_DOMAIN=http://localhost:8000
-SUPERTOKENS_WEBSITE_DOMAIN=http://localhost:3000
-SUPERTOKENS_API_KEY=your_supertokens_api_key_here
-```
-
-**⚠️ ВАЖНО:** Замените `your_deepgram_api_key_here` и `your_gemini_api_key_here` на реальные ключи!
-
-### Шаг 3: Запуск приложения
+### 3. Запустить приложение
 
 ```bash
 # Запустить все сервисы
 docker-compose up -d
 
-# Проверить статус контейнеров
+# Проверить статус
 docker-compose ps
 
 # Посмотреть логи
-docker-compose logs -f
+docker-compose logs -f backend
 ```
 
-Приложение будет доступно:
-- **Backend API:** http://localhost:8000
-- **API Документация (Swagger):** http://localhost:8000/docs
-- **SuperTokens:** http://localhost:3567
+### 4. Открыть документацию API
 
-### Шаг 4: Применение миграций БД
-
-Миграции применяются автоматически при запуске backend контейнера.
-
-Для ручного применения:
-
-```bash
-docker exec -it audio-notes-backend alembic upgrade head
 ```
-
----
-
-## ⚙️ Конфигурация
-
-### Основные переменные окружения
-
-| Переменная | Описание | Обязательная | Значение по умолчанию |
-|------------|----------|--------------|----------------------|
-| `DATABASE_URL` | URL подключения к PostgreSQL | ✅ | - |
-| `RABBITMQ_URL` | URL подключения к RabbitMQ | ✅ | - |
-| `DEEPGRAM_API_KEY` | API ключ Deepgram | ✅ | - |
-| `GEMINI_API_KEY` | API ключ Google Gemini | ✅ | - |
-| `SUPERTOKENS_CONNECTION_URI` | URL SuperTokens | ✅ | - |
-| `SUPERTOKENS_API_KEY` | API ключ SuperTokens | ⚠️ | - |
-| `LOG_LEVEL` | Уровень логирования | ❌ | `INFO` |
-
----
-
-## 📚 API Документация
-
-После запуска приложения документация доступна по адресу:
-
-**Swagger UI:** http://localhost:8000/docs
-
-### Основные endpoints
-
-#### Авторизация
-- `POST /auth/signup` — регистрация пользователя
-- `POST /auth/signin` — вход пользователя
-- `POST /auth/signout` — выход
-
-#### Заметки (требуется авторизация)
-- `GET /api/notes` — получить список заметок (с фильтрацией)
-- `POST /api/notes` — создать заметку
-- `GET /api/notes/{note_id}` — получить заметку по ID
-- `PUT /api/notes/{note_id}` — обновить заметку
-- `DELETE /api/notes/{note_id}` — удалить заметку
-- `POST /api/notes/{note_id}/complete-upload` — завершить загрузку файла
-
-#### WebSocket
-- `WS /ws/upload?note_id={id}&user_id={uuid}` — загрузка аудио-файла
-
-### Примеры запросов
-
-#### Фильтрация заметок
-
-```bash
-# Поиск по тексту (case-insensitive)
-GET /api/notes?search=важная
-
-# Фильтрация по тегам
-GET /api/notes?tags=work
-
-# Фильтрация по датам
-GET /api/notes?date_from=2025-11-19T00:00:00&date_to=2025-11-19T23:59:59
-
-# Сортировка
-GET /api/notes?sort_by=created_at&order=desc
-
-# Комбинация фильтров
-GET /api/notes?search=проект&tags=work&status=completed&sort_by=created_at&order=desc&limit=10
+http://localhost:8000/docs
 ```
-
----
 
 ## 🧪 Тестирование
 
-### Запуск тестовых скриптов
+### Установка зависимостей
 
 ```bash
-# Тест загрузки через WebSocket + транскрибация + суммаризация
-python3 websocket_test.py
-
-# Тест фильтрации и поиска
-python3 test_filters.py
-
-# Тест case-insensitive поиска
-python3 test_case_insensitive.py
+# Установить с тестовыми зависимостями
+uv sync --extra test
 ```
 
-### Проверка логов
+### Запуск тестов
 
 ```bash
-# Логи backend
-docker logs -f audio-notes-backend
+# Все тесты
+uv run pytest tests/ -v
 
-# Логи worker'а
-docker logs -f audio-notes-worker
+# Конкретный модуль
+uv run pytest tests/test_api_notes.py -v
 
-# Логи в файлах (с ротацией)
-tail -f logs/transcription_worker_$(date +%Y-%m-%d).log
-tail -f logs/summarization_worker_$(date +%Y-%m-%d).log
+# С coverage
+uv run pytest tests/ --cov=app --cov-report=html
+
+# Открыть HTML отчет
+open htmlcov/index.html
 ```
 
----
+### Статистика тестов
+- **Всего тестов:** 77
+- **Coverage:** 43%
+- **API endpoints:** 65% покрытие
+- **Services:** 72% покрытие
+- **Models:** 93% покрытие
+- **Schemas:** 100% покрытие
+
+### Структура тестов
+
+```
+tests/
+├── conftest.py                 # Фикстуры (test_user, client, db_session)
+├── test_api_notes.py           # CRUD операции (18 тестов)
+├── test_auth.py                # Авторизация и изоляция (19 тестов)
+├── test_filters.py             # Фильтрация и поиск (18 тестов)
+├── test_websocket.py           # WebSocket upload (17 тестов)
+└── test_workers.py             # Background workers (5 тестов)
+```
 
 ## 🔄 CI/CD
 
-Проект использует GitHub Actions для автоматизации всех этапов разработки и деплоя.
+### GitHub Actions Workflows
 
-### Workflows
+1. **CI/CD Pipeline** (`.github/workflows/ci.yml`)
+   - ✅ Linting (Ruff)
+   - ✅ Tests (77 тестов)
+   - ✅ Security scan (Trivy)
+   - ✅ Docker build & push
 
-#### CI/CD Pipeline (.github/workflows/ci.yml)
+2. **PR Checks** (`.github/workflows/pr-checks.yml`)
+   - ✅ PR title validation (Conventional Commits)
+   - ✅ Auto-labeling
 
-Основной workflow, который запускается при каждом push и pull request:
-
-- ✅ **Linting** (Ruff) — проверка качества кода
-- ✅ **Tests** — запуск 77 тестов с покрытием 43%
-- ✅ **Docker build & push** — сборка и публикация образов в Docker Hub
-- ✅ **Security scan** (Trivy) — сканирование на уязвимости
-
-#### PR Checks (.github/workflows/pr-checks.yml)
-
-Автоматические проверки для Pull Requests:
-
-- ✅ **PR title validation** — проверка соответствия Conventional Commits
-- ✅ **Auto-labeling** — автоматическое добавление меток
-
-#### Dependency Review (.github/workflows/dependency-review.yml)
-
-Проверка зависимостей на безопасность:
-
-- ✅ **Security vulnerability checks** — поиск уязвимостей в зависимостях
-- ✅ **License compliance** — проверка лицензий
-
-### GitHub Secrets
-
-Для работы CI/CD pipeline необходимо настроить следующие secrets в GitHub:
-
-**Обязательные:**
-- `DOCKER_USERNAME` — Docker Hub username
-- `DOCKER_PASSWORD` — Docker Hub access token
-
-**Опциональные (для deploy):**
-- `SERVER_HOST` — IP адрес production сервера
-- `SERVER_USER` — SSH username
-- `SSH_PRIVATE_KEY` — SSH приватный ключ
-
-**Настройка secrets:**
-1. Перейти в Settings → Secrets and variables → Actions
-2. Нажать "New repository secret"
-3. Добавить каждый secret
+3. **Dependency Review** (`.github/workflows/dependency-review.yml`)
+   - ✅ Security vulnerability checks
+   - ✅ License compliance
 
 ### Локальная разработка
 
 ```bash
 # Установить pre-commit hooks
-uv sync --extra dev
-uv run pre-commit install
+uv pip install pre-commit
+pre-commit install
 
 # Запустить linting вручную
 uv run ruff check app/ tests/
 uv run ruff format app/ tests/
-
-# Запустить тесты с coverage
-uv run pytest tests/ -v --cov=app --cov-report=term-missing
 ```
 
-### Покрытие тестами
+## 📡 API Endpoints
 
-Текущее покрытие кода тестами: **43%**
-
-Цели покрытия (настроены в `codecov.yml`):
-- **Project target:** 40%
-- **Patch target:** 50%
-
----
-
-## 📁 Структура проекта
+### Аутентификация
 
 ```
-audio-notes-app/
-├── app/
-│   ├── api/
-│   │   └── notes.py                    # REST API endpoints
-│   ├── models/
-│   │   └── audio_note.py               # SQLAlchemy модели
-│   ├── schemas/
-│   │   └── audio_note.py               # Pydantic схемы
-│   ├── workers/
-│   │   ├── transcription_worker.py     # Worker транскрибации
-│   │   └── summarization_worker.py     # Worker суммаризации
-│   ├── config.py                       # Конфигурация приложения
-│   ├── database.py                     # Подключение к БД
-│   └── main.py                         # FastAPI приложение
-├── alembic/
-│   ├── versions/                       # Миграции БД
-│   └── env.py                          # Alembic конфигурация
-├── logs/                               # Логи (gitignore)
-│   ├── transcription_worker_*.log
-│   └── summarization_worker_*.log
-├── uploads/                            # Загруженные файлы (gitignore)
-├── docker-compose.yml                  # Оркестрация сервисов
-├── Dockerfile                          # Backend контейнер
-├── Dockerfile.worker                   # Worker контейнер
-├── requirements.txt                    # Python зависимости
-├── .env                                # Переменные окружения (gitignore)
-├── .env.example                        # Пример .env файла
-├── .gitignore                          # Git ignore правила
-└── README.md                           # Этот файл
+POST   /auth/signup        # Регистрация
+POST   /auth/signin        # Вход
+POST   /auth/signout       # Выход
 ```
 
----
+### Заметки
 
-## 👨‍💻 Разработка
+```
+GET    /api/notes          # Список заметок (с фильтрами)
+POST   /api/notes          # Создать заметку
+GET    /api/notes/{id}     # Получить заметку
+PATCH  /api/notes/{id}     # Обновить заметку
+DELETE /api/notes/{id}     # Удалить заметку
+POST   /api/notes/{id}/upload-complete  # Завершить загрузку
+```
 
-### Остановка приложения
+### WebSocket
+
+```
+WS /ws/upload?note_id=X&user_id=Y  # Загрузка аудио-файла
+```
+
+### Параметры фильтрации
+- `search` - полнотекстовый поиск (case-insensitive)
+- `status` - фильтр по статусу (pending, processing, completed)
+- `tags` - фильтр по тегам (comma-separated)
+- `date_from` - фильтр от даты (ISO 8601)
+- `date_to` - фильтр до даты (ISO 8601)
+- `sort_by` - сортировка (created_at, title, status)
+- `order` - порядок (asc, desc)
+- `limit` - количество (default: 100)
+- `skip` - пропустить (default: 0)
+
+## 🔐 Безопасность
+
+### Реализованные меры
+- **Rate Limiting:** 10-50 запросов/минуту по endpoint
+- **CORS:** Настроенные origins для frontend
+- **Security Headers:** 6 headers (X-Frame-Options, CSP, HSTS, etc.)
+- **Input Validation:** Pydantic validators для всех полей
+- **Error Handling:** Глобальные exception handlers
+- **Retry Logic:** 3 попытки для external API с exponential backoff
+
+### Environment Variables
+Все чувствительные данные в `.env`:
+- `DEEPGRAM_API_KEY` - Deepgram API ключ
+- `GEMINI_API_KEY` - Google Gemini API ключ
+- `DATABASE_URL` - PostgreSQL connection string
+- `RABBITMQ_URL` - RabbitMQ connection string
+- `SUPERTOKENS_API_KEY` - SuperTokens ключ
+
+## 📊 Мониторинг и логирование
+
+### Loguru логирование
+- Автоматическая ротация (7 дней)
+- Structured logs (JSON)
+- Логи для всех компонентов:
+  - API requests/responses
+  - Worker processing
+  - External API calls
+  - Errors and exceptions
+
+### Просмотр логов
 
 ```bash
-docker-compose down
+# Backend логи
+docker logs audio-notes-backend -f
+
+# Worker логи
+docker logs audio-notes-worker -f
+
+# RabbitMQ логи
+docker logs audio-notes-rabbitmq -f
 ```
 
-### Пересборка контейнеров
+## 🛠️ Разработка
+
+### Установка для разработки
 
 ```bash
-docker-compose up -d --build
+# Установить с dev зависимостями
+uv sync --extra dev
+
+# Запустить pre-commit hooks
+pre-commit install
 ```
 
-### Просмотр логов конкретного сервиса
+### Создание миграций
 
 ```bash
-docker-compose logs -f backend
-docker-compose logs -f worker
-docker-compose logs -f postgres
-docker-compose logs -f rabbitmq
+# Создать новую миграцию
+docker-compose exec backend alembic revision --autogenerate -m "description"
+
+# Применить миграции
+docker-compose exec backend alembic upgrade head
 ```
 
-### Подключение к БД
+### Code Style
+- **Linter:** Ruff
+- **Formatter:** Ruff
+- **Type Checker:** Mypy (опционально)
+- **Conventions:** PEP 8
 
-```bash
-docker exec -it audio-notes-postgres psql -U audiouser -d audio_notes_db
-```
+## 🤝 Contributing
 
-### Создание новой миграции
+### Workflow
+1. Fork репозиторий
+2. Создать feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit изменения (`git commit -m 'feat: add amazing feature'`)
+4. Push в branch (`git push origin feature/AmazingFeature`)
+5. Открыть Pull Request
 
-```bash
-docker exec -it audio-notes-backend alembic revision --autogenerate -m "description"
-```
+### Commit Messages
+Используйте Conventional Commits:
+- `feat:` - новая функциональность
+- `fix:` - исправление бага
+- `docs:` - изменения в документации
+- `test:` - добавление тестов
+- `refactor:` - рефакторинг кода
+- `chore:` - прочие изменения
 
-### Применение миграций
+## 📄 Лицензия
 
-```bash
-docker exec -it audio-notes-backend alembic upgrade head
-```
-
-### Откат миграций
-
-```bash
-docker exec -it audio-notes-backend alembic downgrade -1
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Проблема: Backend не запускается
-
-**Решение:**
-1. Проверьте логи: `docker logs audio-notes-backend`
-2. Убедитесь, что все переменные в `.env` заполнены
-3. Проверьте, что PostgreSQL запустился: `docker ps | grep postgres`
-
-### Проблема: Worker не обрабатывает задачи
-
-**Решение:**
-1. Проверьте логи worker'а: `docker logs audio-notes-worker`
-2. Убедитесь, что RabbitMQ запущен: `docker ps | grep rabbitmq`
-3. Проверьте API ключи Deepgram и Gemini
-
-### Проблема: Ошибки авторизации
-
-**Решение:**
-1. Проверьте, что SuperTokens запущен: `docker ps | grep supertokens`
-2. Проверьте логи SuperTokens: `docker logs audio-notes-supertokens`
-3. Убедитесь, что `SUPERTOKENS_CONNECTION_URI` правильный
-
-### Проблема: "Connection reset by peer" при тестировании
-
-**Решение:**
-Подождите 10-15 секунд после запуска контейнеров, пока все сервисы поднимутся.
-
----
-
-## 📝 Лицензия
-
-Этот проект создан в рамках тестового задания.
-
----
+Этот проект создан в рамках тестового задания
 
 ## 👤 Автор
 
-Урасинов Даниил Игоревич
-
----
+**Даниил Урасинов**
